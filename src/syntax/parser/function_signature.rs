@@ -9,7 +9,7 @@ use crate::syntax::parser::type_annotation::parse_type_annotation;
 use crate::types::type_annotation::TypeAnnotation;
 
 pub fn parse_function_name(token_stream: &mut TokenStream) -> SyntaxResult<DefaultSymbol> {
-    Ok(token_stream.expect_next_identifier()?)
+    Ok(token_stream.expect_next_identifier()?.symbol)
 }
 
 fn parse_parameter(token_stream: &mut TokenStream) -> SyntaxResult<Parameter> {

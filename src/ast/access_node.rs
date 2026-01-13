@@ -4,8 +4,8 @@ use crate::ast::arena_ast::ASTNodeId;
 
 #[derive(Debug)]
 pub struct AccessNode {
-    receiver: ASTNodeId,
-    member: Member,
+    pub receiver: ASTNodeId,
+    pub member: Member,
 }
 
 impl AccessNode {

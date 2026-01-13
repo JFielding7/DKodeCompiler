@@ -7,6 +7,8 @@ use error::compiler_error::CompilerResult;
 use crate::error::compiler_error::CompilerError;
 use crate::error::compiler_error::CompilerError::FileRead;
 use crate::error::spanned_error::SpannedError;
+use crate::semantic::name_resolution::NameResolver;
+use crate::semantic::semantic_analysis;
 use crate::semantic::type_synthesis::type_synthesizer::TypeSynthesizer;
 use crate::source::source_file::SourceFile;
 
@@ -24,11 +26,9 @@ fn compile_source_file(source_file: &SourceFile, compiler_context: &mut Compiler
 
     let source_lines = lex_source_file(source_file, compiler_context)?;
 
-    let ast: AST = ASTParser::generate_ast(source_lines)?;
-
-    let ast = TypeSynthesizer::compute_ast_types(ast, compiler_context);
-
-    println!("{:?}", ast);
+    let ast: AST = ASTParser::generate_ast(source_lines, compiler_context)?;
+    
+    semantic_analysis(ast, compiler_context)?;
 
     Ok(())
 }

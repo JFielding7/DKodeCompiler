@@ -4,7 +4,7 @@ use crate::types::type_annotation::TypeAnnotation;
 
 #[derive(Debug)]
 pub struct FunctionDefNode {
-    name: DefaultSymbol,
+    pub name: DefaultSymbol,
     params: Vec<Parameter>,
     body: Vec<ASTNodeId>,
     return_type: Option<TypeAnnotation>,

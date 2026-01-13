@@ -1,7 +1,6 @@
 use crate::ast::access_node::{AccessNode, Member};
 use crate::ast::arena_ast::{ASTNodeId, AST};
-use crate::ast::ast_node::{ASTNode, ASTNodeType, SpannableASTNode};
-use crate::ast::ast_node::ASTNodeType::Variable;
+use crate::ast::ast_node::{ASTNode, ASTNodeType, ASTNodeLocation};
 use crate::ast::binary_operator_node::{BinaryOperatorNode};
 use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::index_node::IndexNode;
@@ -15,48 +14,16 @@ use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
 use crate::syntax::error::SyntaxError::{InvalidExpression, UnmatchedGroupOpening};
 use crate::syntax::error::SyntaxResult;
-use crate::syntax::parser::expression::OperatorPrecedence::Prefix;
+use crate::operators::precedence::OperatorPrecedenceGroup;
+use crate::operators::precedence::OperatorPrecedenceGroup::Prefix;
 use crate::syntax::parser::token_stream::TokenStream;
 use crate::syntax::parser::type_annotation::parse_type_annotation;
 
-#[repr(u8)]
-#[derive(Copy, Clone)]
-enum OperatorPrecedence {
-    Comma = 0,
-    Assign,
-    LogicalOr,
-    LogicalAnd,
-    BitOr,
-    BitXor,
-    BitAnd,
-    Equality,
-    Relational,
-    BitShift,
-    Add,
-    Mul,
-    Prefix,
-    Postfix,
-}
-
-impl OperatorPrecedence {
-    fn as_u8(self) -> u8 {
-        self as u8
-    }
-
-    fn left_assoc(self) -> (u8, u8) {
-        (self.as_u8(), self.as_u8() + 1)
-    }
-
-    fn right_assoc(self) -> (u8, u8) {
-        (self.as_u8(), self.as_u8())
-    }
-}
-
-fn operators_with_lhs_precedence(op: &Token) -> Option<(u8, u8)> {
-    use OperatorPrecedence::*;
+fn operators_with_lhs_binding_power(op: &Token) -> Option<(u8, u8)> {
+    use OperatorPrecedenceGroup::*;
 
     Some(match op.token_type {
-        TokenType::Comma => Comma.left_assoc(),
+        TokenType::Comma => Comma,
 
         Equals
         | PlusEquals
@@ -69,50 +36,50 @@ fn operators_with_lhs_precedence(op: &Token) -> Option<(u8, u8)> {
         | AmpersandEquals
         | CaretEquals
         | PipeEquals
-        => Assign.right_assoc(),
+        => Assign,
 
-        DoublePipe => LogicalOr.left_assoc(),
+        DoublePipe => LogicalOr,
 
-        DoubleAmpersand => LogicalAnd.left_assoc(),
+        DoubleAmpersand => LogicalAnd,
 
-        Pipe => BitOr.left_assoc(),
+        Pipe => BitOr,
 
-        Caret => BitXor.left_assoc(),
+        Caret => BitXor,
 
-        Ampersand => BitAnd.left_assoc(),
+        Ampersand => BitAnd,
 
         DoubleEquals
         | ExclamationEquals
-        => Equality.left_assoc(),
+        => Equality,
 
         Less
         | LessEquals
         | Greater
         | GreaterEquals
-        => Relational.left_assoc(),
+        => Relational,
 
         DoubleLeftArrow
         | DoubleRightArrow
-        => BitShift.left_assoc(),
+        => BitShift,
 
         Plus
         | Minus
-        => Add.left_assoc(),
+        => Add,
 
         Star
         | Slash
         | Percent
-        => Mul.left_assoc(),
+        => Mul,
 
         PlusPlus
         | MinusMinus
         | OpenParen
         | OpenBracket
         | Dot
-        => Postfix.left_assoc(),
+        => Postfix,
 
         _ => return None,
-    })
+    }.binding_power())
 }
 
 
@@ -199,13 +166,13 @@ fn close_token(open_token: &Token) -> TokenType {
 }
 
 pub struct ExpressionParser<'a> {
-    token_stream: &'a mut TokenStream<'a>,
+    token_stream: TokenStream<'a>,
     ast: &'a mut AST,
     scope: ScopeId,
 }
 
 impl<'a> ExpressionParser<'a> {
-    pub fn new(token_stream: &'a mut TokenStream<'a>, ast: &'a mut AST, scope: ScopeId) -> Self {
+    pub fn new(token_stream: TokenStream<'a>, ast: &'a mut AST, scope: ScopeId) -> Self {
         Self {
             token_stream,
             ast,
@@ -366,7 +333,7 @@ impl<'a> ExpressionParser<'a> {
                 return Ok(left_node_id);
             }
 
-            if let Some((left_precedence, right_precedence)) = operators_with_lhs_precedence(token) {
+            if let Some((left_precedence, right_precedence)) = operators_with_lhs_binding_power(token) {
                 if left_precedence < curr_precedence {
                     return Ok(left_node_id)
                 }
@@ -382,7 +349,7 @@ impl<'a> ExpressionParser<'a> {
         Ok(left_node_id)
     }
 
-    pub fn parse(token_stream: &'a mut TokenStream<'a>, ast_arena: &'a mut AST, scope: ScopeId) -> SyntaxResult<ASTNodeId> {
+    pub fn parse(token_stream: TokenStream<'a>, ast_arena: &'a mut AST, scope: ScopeId) -> SyntaxResult<ASTNodeId> {
         ExpressionParser::new(token_stream, ast_arena, scope).parse_expression_rec(0)
     }
 }

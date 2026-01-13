@@ -1,14 +1,14 @@
 use strum::EnumIter;
 use string_interner::DefaultSymbol;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DataType {
     Builtin(BuiltinType),
     UserDefined(DefaultSymbol),
     // TODO: generics
 }
 
-#[derive(Debug, PartialEq, EnumIter)]
+#[derive(Debug, Clone, PartialEq, EnumIter)]
 pub enum BuiltinType {
     Unit = 0,
     Bool,

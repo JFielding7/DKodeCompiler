@@ -8,13 +8,13 @@ use crate::types::data_type::BuiltinType;
 pub trait BuiltinOperatorRegistry {
     type Operands: Hash + Eq;
 
-    fn resolve_builtins(&self, operand: &Self::Operands, type_arena: &TypeArena) -> Option<DataTypeId>;
+    fn builtin_operations(&self, operand: &Self::Operands, type_arena: &TypeArena) -> Option<DataTypeId>;
 }
 
 impl BuiltinOperatorRegistry for UnaryOperator {
     type Operands = DataTypeId;
 
-    fn resolve_builtins(&self, operand_type_id: &DataTypeId, type_arena: &TypeArena) -> Option<DataTypeId> {
+    fn builtin_operations(&self, operand_type_id: &DataTypeId, type_arena: &TypeArena) -> Option<DataTypeId> {
         use UnaryOperator::*;
         use BuiltinType::*;
 
@@ -47,27 +47,23 @@ impl BuiltinOperatorRegistry for UnaryOperator {
 impl BuiltinOperatorRegistry for BinaryOperator {
     type Operands = (DataTypeId, DataTypeId);
 
-    fn resolve_builtins(&self, operand_ids: &(DataTypeId, DataTypeId), type_arena: &TypeArena) -> Option<DataTypeId> {
+    fn builtin_operations(&self, operand_ids: &(DataTypeId, DataTypeId), type_arena: &TypeArena) -> Option<DataTypeId> {
         use BinaryOperator::*;
         use BuiltinType::*;
 
         let (lhs_type_id, rhs_type_id) = *operand_ids;
 
+        if *self == Assign && lhs_type_id == rhs_type_id {
+            return Some(rhs_type_id)
+        } else if *self == CommaOperator {
+            return Some(rhs_type_id)
+        }
+
+        println!("{:?} {:?} {}", lhs_type_id, rhs_type_id, lhs_type_id == rhs_type_id);
+
         let lhs_type = match type_arena.get(lhs_type_id) {
             Builtin(builtin_type) => builtin_type,
-            UserDefined(_) => {
-                return match self {
-                    Assign => {
-                        if lhs_type_id == rhs_type_id {
-                            Some(rhs_type_id)
-                        } else {
-                            None
-                        }
-                    },
-                    CommaOperator => Some(rhs_type_id),
-                    _ => None,
-                }
-            }
+            _ => return None,
         };
 
         let rhs_type = match type_arena.get(rhs_type_id) {

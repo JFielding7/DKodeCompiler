@@ -1,4 +1,5 @@
 use crate::ast::arena_ast::ASTNodeId;
+use crate::ast::ast_node::ASTNode;
 
 #[derive(Debug)]
 pub struct IfNode {
@@ -12,6 +13,10 @@ impl IfNode {
             condition_blocks,
             else_body
         }
+    }
+
+    pub fn if_condition(&self) -> ASTNodeId {
+        self.condition_blocks[0].condition
     }
 }
 

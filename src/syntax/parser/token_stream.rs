@@ -66,8 +66,8 @@ impl<'a> TokenStream<'a> {
         }
     }
     
-    pub fn expect_next_identifier(&mut self) -> SyntaxResult<DefaultSymbol> {
-        self.expect_next_token(Identifier).map(|token| token.symbol)
+    pub fn expect_next_identifier(&mut self) -> SyntaxResult<&Token> {
+        self.expect_next_token(Identifier)
     }
 
     pub fn peek_matches(&mut self, token_type: TokenType) -> bool {

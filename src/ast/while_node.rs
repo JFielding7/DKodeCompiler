@@ -2,7 +2,7 @@ use crate::ast::arena_ast::ASTNodeId;
 
 #[derive(Debug)]
 pub struct WhileNode {
-    condition: ASTNodeId,
+    pub condition: ASTNodeId,
     body: Vec<ASTNodeId>,
 }
 

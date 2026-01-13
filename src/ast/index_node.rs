@@ -2,8 +2,8 @@ use crate::ast::arena_ast::ASTNodeId;
 
 #[derive(Debug)]
 pub struct IndexNode {
-    operand: ASTNodeId,
-    arg: ASTNodeId,
+    pub operand: ASTNodeId,
+    pub arg: ASTNodeId,
 }
 
 impl IndexNode {

@@ -32,7 +32,7 @@ fn parse_inner_types(token_stream: &mut TokenStream) -> SyntaxResult<Vec<TypeAnn
 
 pub fn parse_type_annotation(token_stream: &mut TokenStream) -> SyntaxResult<TypeAnnotation> {
 
-    let type_name = token_stream.expect_next_identifier()?;
+    let type_name = token_stream.expect_next_identifier()?.symbol;
 
     if token_stream.peek_matches(Less) {
         token_stream.next();

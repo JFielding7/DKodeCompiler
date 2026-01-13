@@ -2,8 +2,8 @@ use crate::ast::arena_ast::ASTNodeId;
 
 #[derive(Debug)]
 pub struct FunctionCallNode {
-    function: ASTNodeId,
-    args: Option<ASTNodeId>,
+    pub function: ASTNodeId,
+    pub args: Option<ASTNodeId>,
 }
 
 impl FunctionCallNode {

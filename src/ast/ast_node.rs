@@ -16,19 +16,19 @@ use crate::compiler_context::type_arena::DataTypeId;
 
 #[derive(Debug)]
 pub struct ASTNode {
-    pub node_data_type: ASTNodeType,
+    pub node_type: ASTNodeType,
     pub span: SourceSpan,
-    pub scope: ScopeId,
-    pub data_type: Option<DataTypeId>,
+    pub scope_id: ScopeId,
+    pub data_type_id: Option<DataTypeId>,
 }
 
 impl ASTNode {
     pub fn new(node_data_type: ASTNodeType, span: SourceSpan, scope: ScopeId) -> Self {
         Self {
-            node_data_type, 
+            node_type: node_data_type, 
             span,
-            scope,
-            data_type: None,
+            scope_id: scope,
+            data_type_id: None,
         }
     }
 }
@@ -59,7 +59,7 @@ pub enum ASTNodeType {
     For(ForNode),
 }
 
-pub trait SpannableASTNode {
+pub trait ASTNodeLocation {
     fn at(self, span: SourceSpan, scope: ScopeId) -> ASTNode
     where Self: Sized, ASTNodeType: From<Self> {
         ASTNode::new(self.into(), span, scope)
@@ -75,7 +75,7 @@ macro_rules! impl_to_ast_node_type {
                 }
             }
 
-            impl SpannableASTNode for $node_type {}
+            impl ASTNodeLocation for $node_type {}
         )*
     };
 }
