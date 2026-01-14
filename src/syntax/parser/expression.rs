@@ -8,7 +8,7 @@ use crate::ast::unary_operator_node::{UnaryOperatorNode};
 use crate::ast::variable_node::VariableNode;
 use crate::compiler_context::scope::ScopeId;
 use crate::error::compiler_error::CompilerResult;
-use crate::error::spanned_error::SpannableError;
+use crate::error::compiler_error::SpannableError;
 use crate::lexer::token::TokenType::*;
 use crate::lexer::token::{Token, TokenType};
 use crate::operators::binary_operators::BinaryOperator;

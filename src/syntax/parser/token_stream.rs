@@ -4,7 +4,7 @@ use crate::lexer::token::{Token, TokenType};
 use std::iter::Peekable;
 use std::slice::Iter;
 use crate::error::compiler_error::CompilerResult;
-use crate::error::spanned_error::SpannableError;
+use crate::error::compiler_error::SpannableError;
 use crate::syntax::error::SyntaxError::ExpectedToken;
 
 pub struct TokenStream<'a> {
@@ -50,16 +50,22 @@ impl<'a> TokenStream<'a> {
         self.curr_token_split
     }
 
-    pub fn expect_next_token(&mut self, token_type: TokenType) -> CompilerResult<&Token> {
+    pub fn expect_next_token(&mut self, expected: TokenType) -> CompilerResult<&Token> {
 
         match self.next() {
-            None => Err(ExpectedToken(token_type, None).at(self.end_span())),
+            None => Err(ExpectedToken {
+                expected,
+                actual: None
+            }.at(self.end_span())),
 
             Some(token) => {
-                if *token == token_type {
+                if *token == expected {
                     Ok(token)
                 } else {
-                    Err(ExpectedToken(token_type, Some(token.clone())).at(token.span))
+                    Err(ExpectedToken {
+                        expected,
+                        actual: Some(token.clone())
+                    }.at(token.span))
                 }
             },
         }

@@ -1,7 +1,7 @@
 use string_interner::DefaultSymbol;
 use crate::ast::function_def_node::Parameter;
 use crate::error::compiler_error::CompilerResult;
-use crate::error::spanned_error::SpannableError;
+use crate::error::compiler_error::SpannableError;
 use crate::lexer::token::TokenType::{CloseParen, Colon, Comma, Identifier, OpenParen};
 use crate::syntax::error::SyntaxError::UnexpectedExpression;
 use crate::syntax::parser::token_stream::TokenStream;

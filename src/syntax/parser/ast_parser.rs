@@ -7,7 +7,7 @@ use crate::ast::if_node::{ConditionBlock, IfNode};
 use crate::ast::while_node::WhileNode;
 use crate::compiler_context::scope::ScopeId;
 use crate::compiler_context::CompilerContext;
-use crate::error::spanned_error::SpannableError;
+use crate::error::compiler_error::SpannableError;
 use crate::lexer::token::TokenType;
 use crate::lexer::token::TokenType::*;
 use crate::lexer::tokenizer::TokenizedLines;

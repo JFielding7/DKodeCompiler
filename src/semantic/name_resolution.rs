@@ -12,9 +12,9 @@ use crate::ast::variable_node::VariableNode;
 use crate::ast::while_node::WhileNode;
 use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
-use crate::error::spanned_error::SpannableError;
+use crate::error::compiler_error::SpannableError;
 use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
-use crate::semantic::error::SemanticError::{DuplicateParameterName, UndefinedVariable};
+use crate::semantic::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, UndefinedVariable};
 
 pub struct NameResolver<'a> {
     ast: &'a AST,
@@ -126,7 +126,9 @@ impl<'a> NameResolver<'a> {
     }
 
     fn resolve_function_def(&mut self, func_def_node: &FunctionDefNode, wrapper_node: &ASTNode) -> CompilerResult<()> {
-        self.ctx.symbol_table.insert(func_def_node.name, wrapper_node.span, wrapper_node.scope_id);
+        if !self.ctx.symbol_table.insert(func_def_node.name, wrapper_node.span, wrapper_node.scope_id) {
+            return Err(DuplicateFunctionName(func_def_node.name).at(wrapper_node.span))
+        }
 
         for param in &func_def_node.params {
             if !self.ctx.symbol_table.insert(

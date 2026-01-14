@@ -1,14 +1,12 @@
 use crate::ast::arena_ast::AST;
 use crate::compiler_context::CompilerContext;
-use crate::error::compiler_error::Error;
-use crate::error::compiler_error::Error::FileRead;
+use crate::error::Error;
 use crate::lexer::tokenizer::lex_source_file;
 use crate::semantic::semantic_analysis;
 use crate::source::source_file::SourceFile;
 use crate::syntax::parser::ast_parser::ASTParser;
-use error::compiler_error::CompilerResult;
-use error::compiler_error::Error::NoInputFiles;
-use error::compiler_error::Result;
+use error::Result;
+use crate::error::compiler_error::CompilerResult;
 
 mod lexer;
 mod syntax;
@@ -34,6 +32,8 @@ fn compile_source_file(source_file: &SourceFile, compiler_context: &mut Compiler
 }
 
 fn compile_program(args: Vec<String>, compiler_context: &mut CompilerContext) -> Result<()> {
+    use Error::*;
+    
     const MIN_ARG_COUNT: usize = 2;
 
     if args.len() < MIN_ARG_COUNT {
@@ -45,14 +45,10 @@ fn compile_program(args: Vec<String>, compiler_context: &mut CompilerContext) ->
             .map_err(|err| FileRead { file_name: source_file_name, error: err })?;
 
         compile_source_file(&source_file, compiler_context)
-            .map_err(|spanned_error| Error::Compiler(source_file, spanned_error))?;
+            .map_err(|error| Compiler { source_file, error })?;
     }
 
     Ok(())
-}
-
-fn format(ctx: CompilerContext) {
-    println!("{:?}", ctx);
 }
 
 fn main()  {
@@ -60,6 +56,6 @@ fn main()  {
     let mut compiler_context = CompilerContext::new();
 
     if let Err(err) = compile_program(args, &mut compiler_context) {
-        println!("{}", err.format(compiler_context));
+        println!("{}", err.format(&compiler_context));
     }
 }

@@ -1,5 +1,5 @@
 use crate::compiler_context::CompilerContext;
-use crate::error::spanned_error::SpannableError;
+use crate::error::compiler_error::SpannableError;
 use crate::lexer::error::LexerError::{InvalidToken, UnalignedIndent};
 use crate::lexer::token::TokenType::Indent;
 use crate::lexer::token::{Token, TokenType, INDENT_SIZE};
@@ -54,14 +54,18 @@ fn tokenize_line(
 
     while let Some(next_token) = lexer.next() {
         let span = lexer.span();
+        let slice = lexer.slice();
         let source_span = SourceSpan::new(line_index, span.start, span.end);
 
-        let token_type = next_token
-            .map_err(|_| InvalidToken(lexer.slice().to_string()).at(source_span))?;
+        let token_type = next_token.map_err(|_|
+            InvalidToken(
+                ctx.string_interner.get_intern_symbol(slice)
+            ).at(source_span)
+        )?;
 
         tokens.push(Token::new(
             token_type,
-            ctx.string_interner.get_intern_symbol(lexer.slice()),
+            ctx.string_interner.get_intern_symbol(slice),
             source_span
         ));
     }

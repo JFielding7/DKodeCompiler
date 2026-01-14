@@ -6,7 +6,7 @@ use crate::ast::function_def_node::FunctionDefNode;
 use crate::compiler_context::scope::ScopeId;
 use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
-use crate::error::spanned_error::SpannableError;
+use crate::error::compiler_error::SpannableError;
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::binary_operators::BinaryOperator::Assign;
 use crate::operators::unary_operators::UnaryOperator;

@@ -1,35 +1,30 @@
-use string_interner::DefaultSymbol;
 use crate::compiler_context::CompilerContext;
-use crate::error::spanned_error::{SpannableError, CompilerError};
+use crate::error::compiler_error::SpannableError;
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
 use crate::types::data_type::DataTypeId;
+use string_interner::DefaultSymbol;
 use SemanticError::*;
-use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum SemanticError {
-    #[error("")]
     MismatchedUnaryOperatorTypes(UnaryOperator, DataTypeId),
 
-    #[error("")]
     MismatchedBinaryOperatorTypes(BinaryOperator, DataTypeId, DataTypeId),
 
-    #[error("")]
     DuplicateParameterName(DefaultSymbol),
 
-    #[error("")]
+    DuplicateFunctionName(DefaultSymbol),
+
     UndefinedVariable(DefaultSymbol),
 
-    #[error("Error: Undefined type")]
     UndefinedType,
 
-    #[error("Error: Cannot infer type")]
     TypeInference,
 }
 
 impl SpannableError for SemanticError {
-    fn format(&self, ctx: CompilerContext) -> String {
+    fn format(&self, ctx: &CompilerContext) -> String {
         match self {
             MismatchedUnaryOperatorTypes(op, id) => {
                 format!("Error: Operator {op} not defined on {}",
@@ -37,15 +32,28 @@ impl SpannableError for SemanticError {
                 )
             }
             MismatchedBinaryOperatorTypes(op, left, right) => {
-                format!("Error: Operator {op} not defined for {} and {}", ctx.type_arena.format_type(*left, &ctx.string_interner), ctx.type_arena.format_type(*right, &ctx.string_interner))
+                format!("Error: Operator {op} not defined for {} and {}", 
+                        ctx.type_arena.format_type(*left, &ctx.string_interner), 
+                        ctx.type_arena.format_type(*right, &ctx.string_interner)
+                )
             }
             UndefinedVariable(var_name) => {
-                format!("Error: Undefined variable: {}", ctx.string_interner.get_str(*var_name))
+                format!("Error: Undefined variable: {}", 
+                        ctx.string_interner.get_str(*var_name)
+                )
             }
             DuplicateParameterName(param_name) => {
-                format!("Error: Duplicate parameter name: {}", ctx.string_interner.get_str(*param_name))
+                format!("Error: Duplicate parameter definition: {}", 
+                        ctx.string_interner.get_str(*param_name)
+                )
             }
-            _ => format!("{self}"),
+            DuplicateFunctionName(func_name) => {
+                format!("Error: Duplicate function definition: {}", 
+                        ctx.string_interner.get_str(*func_name)
+                )
+            }
+            UndefinedType => "Error: Undefined type".to_string(),
+            TypeInference => "Error: Cannot infer type".to_string(),
         }
     }
 }

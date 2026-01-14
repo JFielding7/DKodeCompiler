@@ -1,32 +1,29 @@
 use crate::compiler_context::CompilerContext;
-use crate::error::spanned_error::{SpannableError, CompilerError};
+use crate::error::compiler_error::SpannableError;
 use crate::lexer::token::{Token, TokenType};
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug)]
 pub enum SyntaxError {
+    ExpectedToken {
+        expected: TokenType,
+        actual: Option<Token>,
+    },
 
-    #[error("")]
-    ExpectedToken(TokenType, Option<Token>),
-
-    #[error("Error: Unexpected Expression")]
-    UnexpectedExpression,
-
-    #[error("Error: Unmatched {0}")]
     UnmatchedGroupOpening(TokenType),
 
-    #[error("Error: Invalid Expression")]
-    InvalidExpression,
-
-    #[error("Error: Line indented too far in")]
     IndentTooLarge,
+
+    UnexpectedExpression,
+
+    InvalidExpression,
 }
 
 impl SpannableError for SyntaxError {
-    fn format(&self, ctx: CompilerContext) -> String {
+    fn format(&self, ctx: &CompilerContext) -> String {
         use SyntaxError::*;
 
         match self {
-            ExpectedToken(expected, actual) => {
+            ExpectedToken { expected, actual } => {
                 match actual {
                     None => format!("Error: {expected} expected"),
                     Some(token) => format!(
@@ -35,7 +32,13 @@ impl SpannableError for SyntaxError {
                     ),
                 }
             }
-            _ => format!("{self}"),
+            UnmatchedGroupOpening(opening) => {
+                format!("Error: Unmatched {}", opening)
+            },
+            IndentTooLarge => "Error: Line indented too far in".to_string(),
+            UnexpectedExpression => "Error: Unexpected Expression".to_string(),
+            InvalidExpression => "Error: Invalid Expression".to_string(),
+
         }
     }
 }
