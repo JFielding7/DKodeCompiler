@@ -1,4 +1,5 @@
 use crate::lexer::token::TokenType::{Comma, DoubleRightArrow, Greater, Less};
+use crate::source::source_span::SourceSpan;
 use crate::syntax::error::SyntaxResult;
 use crate::syntax::parser::token_stream::TokenStream;
 use crate::types::type_annotation::TypeAnnotation;
@@ -32,15 +33,23 @@ fn parse_inner_types(token_stream: &mut TokenStream) -> SyntaxResult<Vec<TypeAnn
 
 pub fn parse_type_annotation(token_stream: &mut TokenStream) -> SyntaxResult<TypeAnnotation> {
 
-    let type_name = token_stream.expect_next_identifier()?.symbol;
+    let type_token = token_stream.expect_next_identifier()?;
+    let type_name = type_token.symbol;
+    
+    let type_token_span = type_token.span;
+    let type_span_start = type_token_span.start;
+    let type_span_line_index = type_token_span.line_index;
 
     if token_stream.peek_matches(Less) {
         token_stream.next();
         let inner_types = parse_inner_types(token_stream)?;
         assert_type_params_closed(token_stream)?;
-        Ok(TypeAnnotation::with_params(type_name, inner_types))
+        
+        let type_span = SourceSpan::new(type_span_line_index, type_span_start, token_stream.prev_span().end);
+        Ok(TypeAnnotation::with_params(type_name, inner_types, type_span))
         
     } else {
-        Ok(TypeAnnotation::new(type_name))
+        let type_span = SourceSpan::new(type_span_line_index, type_span_start, token_stream.prev_span().end);
+        Ok(TypeAnnotation::new(type_name, type_span))
     }
 }

@@ -8,12 +8,12 @@ pub mod error;
 pub mod type_synthesis;
 pub mod name_resolution;
 
-pub fn semantic_analysis(ast: AST, ctx: &mut CompilerContext) -> SemanticResult<AST> {
+pub fn semantic_analysis(mut ast: AST, ctx: &mut CompilerContext) -> SemanticResult<AST> {
     NameResolver::resolve(&ast, ctx)?;
 
     println!("{:?}", ctx.symbol_table);
 
-    let ast = TypeSynthesizer::synthesize(ast, ctx)?;
+    TypeSynthesizer::synthesize(&mut ast, ctx)?;
 
     println!("{:?}", ast);
 

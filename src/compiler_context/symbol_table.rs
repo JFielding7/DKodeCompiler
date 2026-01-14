@@ -1,8 +1,8 @@
 use crate::compiler_context::scope::{Scope, ScopeId};
 use crate::compiler_context::symbol::Symbol;
 use string_interner::DefaultSymbol;
-use crate::compiler_context::type_arena::DataTypeId;
 use crate::source::source_span::SourceSpan;
+use crate::types::data_type::DataTypeId;
 
 #[derive(Debug)]
 pub struct SymbolTable {

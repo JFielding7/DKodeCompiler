@@ -30,7 +30,7 @@ fn get_indent_token(
     const INDENT_SIZE: usize = 4;
 
     let indent_chars = content.chars().take_while(|&c| c == ' ').collect::<String>();
-    let indent = ctx.get_symbol(indent_chars.as_str());
+    let indent = ctx.get_intern_symbol(indent_chars.as_str());
 
     let indent_spaces = indent_chars.len();
     let span = SourceSpan::new(line_index, 0, indent_spaces);
@@ -63,7 +63,7 @@ fn tokenize_line(
 
         tokens.push(Token::new(
             token_type,
-            ctx.get_symbol(lexer.slice()),
+            ctx.get_intern_symbol(lexer.slice()),
             source_span
         ));
     }

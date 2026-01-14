@@ -1,6 +1,6 @@
 use string_interner::DefaultSymbol;
 use crate::ast::access_node::Member::Field;
-use crate::ast::arena_ast::ASTNodeId;
+use crate::ast::ast_node::ASTNodeId;
 
 #[derive(Debug)]
 pub struct AccessNode {

@@ -86,10 +86,6 @@ impl BinaryOperator {
             | Mod => OperatorPrecedenceGroup::Mul,
         }
     }
-
-    pub fn is_left_assoc(self) -> bool {
-        self.precedence_group().is_left_assoc()
-    }
 }
 
 

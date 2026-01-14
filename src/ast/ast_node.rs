@@ -9,26 +9,24 @@ use crate::ast::index_node::IndexNode;
 use crate::ast::unary_operator_node::UnaryOperatorNode;
 use crate::ast::variable_node::VariableNode;
 use crate::ast::while_node::WhileNode;
+use crate::compiler_context::scope::ScopeId;
 use crate::source::source_span::SourceSpan;
 use string_interner::DefaultSymbol;
-use crate::compiler_context::scope::ScopeId;
-use crate::compiler_context::type_arena::DataTypeId;
+use crate::types::data_type::DataTypeId;
 
 #[derive(Debug)]
 pub struct ASTNode {
     pub node_type: ASTNodeType,
     pub span: SourceSpan,
     pub scope_id: ScopeId,
-    pub data_type_id: Option<DataTypeId>,
 }
 
 impl ASTNode {
-    pub fn new(node_data_type: ASTNodeType, span: SourceSpan, scope: ScopeId) -> Self {
+    pub fn new(node_type: ASTNodeType, span: SourceSpan, scope_id: ScopeId) -> Self {
         Self {
-            node_type: node_data_type, 
+            node_type, 
             span,
-            scope_id: scope,
-            data_type_id: None,
+            scope_id,
         }
     }
 }
@@ -57,6 +55,15 @@ pub enum ASTNodeType {
     While(WhileNode),
 
     For(ForNode),
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ASTNodeId(pub usize);
+
+impl ASTNodeId {
+    pub fn as_usize(&self) -> usize {
+        self.0
+    }
 }
 
 pub trait ASTNodeLocation {

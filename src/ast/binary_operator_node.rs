@@ -1,4 +1,4 @@
-use crate::ast::arena_ast::ASTNodeId;
+use crate::ast::ast_node::ASTNodeId;
 use crate::operators::binary_operators::BinaryOperator;
 
 #[derive(Debug)]

@@ -1,7 +1,8 @@
 use crate::semantic::type_synthesis::builtin_operator_registry::BuiltinOperatorRegistry;
 use std::collections::HashMap;
 use std::hash::Hash;
-use crate::compiler_context::type_arena::{DataTypeId, TypeArena};
+use crate::compiler_context::type_arena::TypeArena;
+use crate::types::data_type::DataTypeId;
 
 pub struct OperatorRegistry<OpType: Eq + Hash + BuiltinOperatorRegistry> {
     implementations: HashMap<OpType, HashMap<OpType::Operands, DataTypeId>>

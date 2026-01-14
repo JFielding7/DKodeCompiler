@@ -1,4 +1,4 @@
-use crate::ast::arena_ast::ASTNodeId;
+use crate::ast::ast_node::ASTNodeId;
 use crate::ast::block_body::Block;
 
 #[derive(Debug)]

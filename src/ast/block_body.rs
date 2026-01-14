@@ -1,4 +1,4 @@
-use crate::ast::arena_ast::ASTNodeId;
+use crate::ast::ast_node::ASTNodeId;
 use crate::compiler_context::scope::ScopeId;
 
 #[derive(Debug)]

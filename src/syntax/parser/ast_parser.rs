@@ -1,5 +1,4 @@
-use crate::ast::arena_ast::{ASTNodeId, AST};
-use crate::ast::ast_node::{ASTNodeType, ASTNodeLocation};
+use crate::ast::ast_node::{ASTNodeType, ASTNodeLocation, ASTNodeId};
 use crate::ast::for_node::{ForNode, ForVariable};
 use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::{ConditionBlock, IfNode};
@@ -16,6 +15,7 @@ use crate::syntax::parser::source_statements::SourceStatements;
 use crate::syntax::parser::statement::Statement;
 use std::iter::Peekable;
 use std::vec::IntoIter;
+use crate::ast::arena_ast::AST;
 use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
 use crate::ast::block_body::Block;
 use crate::ast::variable_node::VariableNode;
@@ -187,11 +187,7 @@ impl<'a> ASTParser<'a> {
 
     fn parse_next_statement_ast_node(&mut self, scope_id: ScopeId) -> SyntaxResult<Option<ASTNodeId>> {
 
-        println!("{:?}", scope_id);
-        
         if let Some(statement) = self.statements_iter.next() {
-
-            println!("{:?}", statement);
 
             let node_id = match statement.token_after_indent_type() {
                 Fn => self.parse_function_def(statement, scope_id)?,

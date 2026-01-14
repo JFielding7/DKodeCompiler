@@ -1,9 +1,10 @@
-use std::hash::Hash;
-use crate::compiler_context::type_arena::{DataTypeId, TypeArena};
+use crate::compiler_context::type_arena::TypeArena;
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
-use crate::types::data_type::DataType::{Builtin, UserDefined};
-use crate::types::data_type::BuiltinType;
+use crate::types::data_type::DataTypeId;
+use crate::types::builtin_type::BuiltinType;
+use std::hash::Hash;
+use crate::types::data_type::DataType::Builtin;
 
 pub trait BuiltinOperatorRegistry {
     type Operands: Hash + Eq;
@@ -20,7 +21,7 @@ impl BuiltinOperatorRegistry for UnaryOperator {
 
         let operand_type = match type_arena.get(*operand_type_id) {
             Builtin(builtin_type) => builtin_type,
-            UserDefined(_) => return None,
+            _ => return None,
         };
 
         let builtin_type = match self {
@@ -58,9 +59,7 @@ impl BuiltinOperatorRegistry for BinaryOperator {
         } else if *self == CommaOperator {
             return Some(rhs_type_id)
         }
-
-        println!("{:?} {:?} {}", lhs_type_id, rhs_type_id, lhs_type_id == rhs_type_id);
-
+        
         let lhs_type = match type_arena.get(lhs_type_id) {
             Builtin(builtin_type) => builtin_type,
             _ => return None,

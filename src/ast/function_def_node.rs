@@ -1,5 +1,5 @@
 use string_interner::DefaultSymbol;
-use crate::ast::arena_ast::ASTNodeId;
+use crate::ast::ast_node::ASTNodeId;
 use crate::ast::block_body::Block;
 use crate::compiler_context::scope::ScopeId;
 use crate::source::source_span::SourceSpan;
@@ -10,7 +10,7 @@ pub struct FunctionDefNode {
     pub name: DefaultSymbol,
     pub params: Vec<Parameter>,
     pub body: Block,
-    return_type: Option<TypeAnnotation>,
+    pub(crate) return_type: Option<TypeAnnotation>,
 }
 
 impl FunctionDefNode {

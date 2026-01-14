@@ -1,5 +1,5 @@
 use string_interner::DefaultSymbol;
-use crate::ast::arena_ast::ASTNodeId;
+use crate::ast::ast_node::ASTNodeId;
 use crate::ast::block_body::Block;
 use crate::source::source_span::SourceSpan;
 

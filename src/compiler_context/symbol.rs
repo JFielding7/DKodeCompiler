@@ -1,5 +1,5 @@
 use string_interner::DefaultSymbol;
-use crate::compiler_context::type_arena::DataTypeId;
+use crate::types::data_type::DataTypeId;
 use crate::source::source_span::SourceSpan;
 
 #[derive(Debug)]

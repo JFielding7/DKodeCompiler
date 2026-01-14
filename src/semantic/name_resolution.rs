@@ -1,7 +1,7 @@
 use crate::ast::access_node::AccessNode;
-use crate::ast::arena_ast::{ASTNodeId, AST};
+use crate::ast::arena_ast::AST;
 use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
-use crate::ast::ast_node::{ASTNode, ASTNodeType};
+use crate::ast::ast_node::{ASTNode, ASTNodeId, ASTNodeType};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::for_node::ForNode;
 use crate::ast::function_call_node::FunctionCallNode;
@@ -11,13 +11,10 @@ use crate::ast::index_node::IndexNode;
 use crate::ast::variable_node::VariableNode;
 use crate::ast::while_node::WhileNode;
 use crate::compiler_context::CompilerContext;
-use crate::compiler_context::scope::ScopeId;
 use crate::error::spanned_error::SpannableError;
-use crate::operators::precedence::OperatorPrecedenceGroup;
 use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
 use crate::semantic::error::SemanticError::{DuplicateParameterName, UndefinedVariable};
 use crate::semantic::error::SemanticResult;
-use crate::source::source_span::SourceSpan;
 
 pub struct NameResolver<'a> {
     ast: &'a AST,
@@ -33,8 +30,6 @@ impl<'a> NameResolver<'a> {
     }
 
     fn resolve_variable(&mut self, var: &VariableNode, wrapper_node: &ASTNode) -> SemanticResult<()> {
-        println!("{:?} {:?}", self.ctx.symbol_table, wrapper_node.scope_id);
-
         if self.ctx.symbol_table.contains(var.name, wrapper_node.scope_id) {
             Ok(())
         } else {
@@ -132,7 +127,6 @@ impl<'a> NameResolver<'a> {
 
     fn resolve_function_def(&mut self, func_def_node: &FunctionDefNode, wrapper_node: &ASTNode) -> SemanticResult<()> {
         self.ctx.symbol_table.insert(func_def_node.name, wrapper_node.span, wrapper_node.scope_id);
-        println!("{:?}", self.ctx.get_str(func_def_node.name));
 
         for param in &func_def_node.params {
             if !self.ctx.symbol_table.insert(

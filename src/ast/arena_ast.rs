@@ -1,4 +1,4 @@
-use crate::ast::ast_node::ASTNode;
+use crate::ast::ast_node::{ASTNode, ASTNodeId};
 use std::iter::Map;
 use std::ops::Range;
 
@@ -41,8 +41,10 @@ impl AST {
     pub fn statement_root_node_id_iter(&self) -> &[ASTNodeId] {
         self.statement_root_node_ids.as_slice()
     }
+
+    pub fn node_count(&self) -> usize {
+        self.node_arena.len()
+    }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct ASTNodeId(usize);
 pub type NodeIdIter = Map<Range<usize>, fn(usize) -> ASTNodeId>;
