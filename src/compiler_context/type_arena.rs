@@ -1,10 +1,11 @@
-use std::collections::HashMap;
-use string_interner::{DefaultBackend, DefaultSymbol, StringInterner};
-use strum::IntoEnumIterator;
+use crate::compiler_context::global_string_interner::GlobalStringInterner;
 use crate::types::builtin_type::BuiltinType;
 use crate::types::data_type::{DataType, DataTypeId};
-use crate::types::type_annotation::TypeAnnotation;
+use std::collections::HashMap;
+use string_interner::DefaultSymbol;
+use strum::IntoEnumIterator;
 
+#[derive(Debug)]
 pub struct TypeArena {
     data_types: Vec<DataType>,
     user_defined_type_ids: HashMap<DefaultSymbol, DataTypeId>,
@@ -26,7 +27,17 @@ impl TypeArena {
         DataTypeId(id)
     }
 
-    pub fn get(&self, id: DataTypeId) -> &DataType {
+    pub fn add_if_new_type(&mut self, data_type: DataType) -> DataTypeId {
+        for (i, t) in self.data_types.iter().enumerate() {
+            if *t == data_type {
+                return DataTypeId(i)
+            }
+        }
+
+        self.add_type(data_type)
+    }
+
+    pub fn get_data_type(&self, id: DataTypeId) -> &DataType {
         &self.data_types[id.as_usize()]
     }
 
@@ -34,13 +45,31 @@ impl TypeArena {
         DataTypeId(builtin_type.as_usize())
     }
 
-    pub fn get_type_id(&self, name: DefaultSymbol, string_interner: &StringInterner<DefaultBackend>) -> Option<DataTypeId> {
-        let name_str = string_interner.resolve(name).expect("String must be interned");
+    pub fn get_type_id(&self, name: DefaultSymbol, string_interner: &GlobalStringInterner) -> Option<DataTypeId> {
+        let name_str = string_interner.get_str(name);
 
-        if let Some(builtin_type) = BuiltinType::from_string(name_str) {
+        if let Some(builtin_type) = BuiltinType::from_str(name_str) {
             Some(self.builtin_type_id(builtin_type))
         } else {
             self.user_defined_type_ids.get(&name).copied()
+        }
+    }
+
+    pub fn format_type(&self, id: DataTypeId, string_interner: &GlobalStringInterner) -> String {
+        use DataType::*;
+        
+        match self.get_data_type(id) {
+            Builtin(builtin_type) => format!("{builtin_type}"),
+            UserDefined(data_type) => string_interner.get_str(*data_type).to_string(),
+            Fn { param_types, return_type } => {
+                format!("fn({}): {}", 
+                        param_types
+                            .iter()
+                            .map(|t| self.format_type(*t, string_interner))
+                            .collect::<Vec<String>>().join(", "), 
+                        self.format_type(*return_type, string_interner)
+                )
+            }
         }
     }
 }

@@ -10,7 +10,7 @@ pub struct FunctionDefNode {
     pub name: DefaultSymbol,
     pub params: Vec<Parameter>,
     pub body: Block,
-    pub(crate) return_type: Option<TypeAnnotation>,
+    pub return_type: Option<TypeAnnotation>,
 }
 
 impl FunctionDefNode {
@@ -32,7 +32,7 @@ impl FunctionDefNode {
 #[derive(Debug)]
 pub struct Parameter {
     pub name: DefaultSymbol,
-    type_annotation: TypeAnnotation,
+    pub type_annotation: TypeAnnotation,
     pub span: SourceSpan,
 }
 

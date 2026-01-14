@@ -11,10 +11,10 @@ use crate::ast::index_node::IndexNode;
 use crate::ast::variable_node::VariableNode;
 use crate::ast::while_node::WhileNode;
 use crate::compiler_context::CompilerContext;
+use crate::error::compiler_error::CompilerResult;
 use crate::error::spanned_error::SpannableError;
 use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
 use crate::semantic::error::SemanticError::{DuplicateParameterName, UndefinedVariable};
-use crate::semantic::error::SemanticResult;
 
 pub struct NameResolver<'a> {
     ast: &'a AST,
@@ -29,15 +29,15 @@ impl<'a> NameResolver<'a> {
         }
     }
 
-    fn resolve_variable(&mut self, var: &VariableNode, wrapper_node: &ASTNode) -> SemanticResult<()> {
+    fn resolve_variable(&mut self, var: &VariableNode, wrapper_node: &ASTNode) -> CompilerResult<()> {
         if self.ctx.symbol_table.contains(var.name, wrapper_node.scope_id) {
             Ok(())
         } else {
-            Err(UndefinedVariable.at(wrapper_node.span))
+            Err(UndefinedVariable(var.name).at(wrapper_node.span))
         }
     }
 
-    fn handle_binary_operator(&mut self, op: &BinaryOperatorNode) -> SemanticResult<()> {
+    fn handle_binary_operator(&mut self, op: &BinaryOperatorNode) -> CompilerResult<()> {
         if op.op_type.precedence_group() == Assign {
             self.resolve_statement_names(op.right)?;
 
@@ -55,7 +55,7 @@ impl<'a> NameResolver<'a> {
         Ok(())
     }
 
-    fn resolve_function_call(&mut self, call: &FunctionCallNode) -> SemanticResult<()> {
+    fn resolve_function_call(&mut self, call: &FunctionCallNode) -> CompilerResult<()> {
         self.resolve_statement_names(call.function)?;
 
         if let Some(args) = call.args {
@@ -65,35 +65,35 @@ impl<'a> NameResolver<'a> {
         Ok(())
     }
 
-    fn resolve_index(&mut self, index: &IndexNode) -> SemanticResult<()> {
+    fn resolve_index(&mut self, index: &IndexNode) -> CompilerResult<()> {
         self.resolve_statement_names(index.operand)?;
         self.resolve_statement_names(index.arg)?;
 
         Ok(())
     }
 
-    fn resolve_access(&mut self, access: &AccessNode) -> SemanticResult<()> {
+    fn resolve_access(&mut self, access: &AccessNode) -> CompilerResult<()> {
         // self.resolve_statement_names(access.receiver)?;
 
         unimplemented!("property access");
     }
 
-    fn resolve_if(&mut self, if_node: &IfNode) -> SemanticResult<()> {
+    fn resolve_if(&mut self, if_node: &IfNode) -> CompilerResult<()> {
         self.resolve_statement_names(if_node.if_condition())
     }
 
-    fn resolve_while(&mut self, while_node: &WhileNode) -> SemanticResult<()> {
+    fn resolve_while(&mut self, while_node: &WhileNode) -> CompilerResult<()> {
         self.resolve_statement_names(while_node.condition)
     }
 
-    fn resolve_for(&mut self, for_node: &ForNode) -> SemanticResult<()> {
+    fn resolve_for(&mut self, for_node: &ForNode) -> CompilerResult<()> {
         let item_var = &for_node.item_variable;
         self.ctx.symbol_table.insert(item_var.name, item_var.span, for_node.body.scope_id);
 
         self.resolve_statement_names(for_node.iterator)
     }
 
-    fn resolve_statement_names(&mut self, statement_root_id: ASTNodeId) -> SemanticResult<()> {
+    fn resolve_statement_names(&mut self, statement_root_id: ASTNodeId) -> CompilerResult<()> {
         use ASTNodeType::*;
 
         let node = self.ast.lookup(statement_root_id);
@@ -117,7 +117,7 @@ impl<'a> NameResolver<'a> {
         Ok(())
     }
 
-    fn resolve_statements(&mut self) -> SemanticResult<()> {
+    fn resolve_statements(&mut self) -> CompilerResult<()> {
         for statement_root_node_id in self.ast.statement_root_node_id_iter() {
             self.resolve_statement_names(*statement_root_node_id)?;
         }
@@ -125,21 +125,21 @@ impl<'a> NameResolver<'a> {
         Ok(())
     }
 
-    fn resolve_function_def(&mut self, func_def_node: &FunctionDefNode, wrapper_node: &ASTNode) -> SemanticResult<()> {
+    fn resolve_function_def(&mut self, func_def_node: &FunctionDefNode, wrapper_node: &ASTNode) -> CompilerResult<()> {
         self.ctx.symbol_table.insert(func_def_node.name, wrapper_node.span, wrapper_node.scope_id);
 
         for param in &func_def_node.params {
             if !self.ctx.symbol_table.insert(
                 param.name, param.span, func_def_node.body.scope_id
             ) {
-                return Err(DuplicateParameterName.at(param.span));
+                return Err(DuplicateParameterName(param.name).at(param.span));
             }
         }
 
         Ok(())
     }
 
-    fn resolve_functions(&mut self) -> SemanticResult<()> {
+    fn resolve_functions(&mut self) -> CompilerResult<()> {
         for node_id in self.ast.ast_node_id_iter() {
             let node = self.ast.lookup(node_id);
 
@@ -151,7 +151,7 @@ impl<'a> NameResolver<'a> {
         Ok(())
     }
 
-    pub fn resolve(ast: &'a AST, ctx: &'a mut CompilerContext) -> SemanticResult<()> {
+    pub fn resolve(ast: &'a AST, ctx: &'a mut CompilerContext) -> CompilerResult<()> {
         let mut resolver = NameResolver::new(ast, ctx);
         resolver.resolve_functions()?;
         resolver.resolve_statements()?;

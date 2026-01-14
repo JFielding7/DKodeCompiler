@@ -1,27 +1,24 @@
-use crate::ast::ast_node::{ASTNodeType, ASTNodeLocation, ASTNodeId};
+use crate::ast::arena_ast::AST;
+use crate::ast::ast_node::{ASTNodeId, ASTNodeLocation};
+use crate::ast::block_body::Block;
 use crate::ast::for_node::{ForNode, ForVariable};
 use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::{ConditionBlock, IfNode};
 use crate::ast::while_node::WhileNode;
+use crate::compiler_context::scope::ScopeId;
+use crate::compiler_context::CompilerContext;
 use crate::error::spanned_error::SpannableError;
-use crate::lexer::token::TokenType::*;
 use crate::lexer::token::TokenType;
+use crate::lexer::token::TokenType::*;
 use crate::lexer::tokenizer::TokenizedLines;
 use crate::syntax::error::SyntaxError::IndentTooLarge;
-use crate::syntax::error::SyntaxResult;
 use crate::syntax::parser::expression::ExpressionParser;
 use crate::syntax::parser::function_signature::{parse_function_name, parse_parameters, parse_return_type};
 use crate::syntax::parser::source_statements::SourceStatements;
 use crate::syntax::parser::statement::Statement;
 use std::iter::Peekable;
 use std::vec::IntoIter;
-use crate::ast::arena_ast::AST;
-use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
-use crate::ast::block_body::Block;
-use crate::ast::variable_node::VariableNode;
-use crate::compiler_context::CompilerContext;
-use crate::compiler_context::scope::ScopeId;
-use crate::compiler_context::symbol::Symbol;
+use crate::error::compiler_error::CompilerResult;
 
 pub struct ASTParser<'a> {
     ast: AST,
@@ -44,7 +41,7 @@ impl<'a> ASTParser<'a> {
             .is_some_and(|statement| statement.token_after_indent_matches(token_type))
     }
 
-    fn parse_children(&mut self, statement: &Statement, scope_id: ScopeId) -> SyntaxResult<Vec<ASTNodeId>> {
+    fn parse_children(&mut self, statement: &Statement, scope_id: ScopeId) -> CompilerResult<Vec<ASTNodeId>> {
         
         let indent_size = statement.indent_size;
         let mut children = Vec::new();
@@ -54,11 +51,7 @@ impl<'a> ASTParser<'a> {
                 break;
             }
 
-            if indent_size + 1 < child.indent_size {
-                return Err(IndentTooLarge.at(child.indent_token().span))
-            }
-
-            if let Some(child) = self.parse_next_statement_ast_node(scope_id)? {
+            if let Some(child) = self.parse_next_statement_ast_node(scope_id, indent_size + 1)? {
                 children.push(child);
             }
         }
@@ -66,7 +59,7 @@ impl<'a> ASTParser<'a> {
         Ok(children)
     }
 
-    fn parse_function_def(&mut self, func_def_statement: Statement, scope_id: ScopeId) -> SyntaxResult<ASTNodeId> {
+    fn parse_function_def(&mut self, func_def_statement: Statement, scope_id: ScopeId) -> CompilerResult<ASTNodeId> {
         const TOKENS_BEFORE_NAME: usize = 2;
         let mut token_stream = func_def_statement.suffix_stream(TOKENS_BEFORE_NAME);
 
@@ -89,7 +82,7 @@ impl<'a> ASTParser<'a> {
         Ok(self.ast.add_node(func_def_node))
     }
 
-    fn parse_if_statement(&mut self, if_statement: Statement, scope_id: ScopeId) -> SyntaxResult<ASTNodeId> {
+    fn parse_if_statement(&mut self, if_statement: Statement, scope_id: ScopeId) -> CompilerResult<ASTNodeId> {
         const TOKENS_BEFORE_COND: usize = 2;
 
         let if_cond = ExpressionParser::parse(
@@ -140,7 +133,7 @@ impl<'a> ASTParser<'a> {
         Ok(self.ast.add_node(if_node))
     }
 
-    fn parse_while_loop(&mut self, while_statement: Statement, scope_id: ScopeId) -> SyntaxResult<ASTNodeId> {
+    fn parse_while_loop(&mut self, while_statement: Statement, scope_id: ScopeId) -> CompilerResult<ASTNodeId> {
         const TOKENS_BEFORE_COND: usize = 2;
         
         let while_cond = ExpressionParser::parse(
@@ -159,7 +152,7 @@ impl<'a> ASTParser<'a> {
         Ok(self.ast.add_node(while_node))
     }
 
-    fn parse_for_loop(&mut self, for_statement: Statement, scope_id: ScopeId) -> SyntaxResult<ASTNodeId> {
+    fn parse_for_loop(&mut self, for_statement: Statement, scope_id: ScopeId) -> CompilerResult<ASTNodeId> {
         const TOKENS_BEFORE_ITEM_IDENT: usize = 2;
         let mut token_stream = for_statement.suffix_stream(TOKENS_BEFORE_ITEM_IDENT);
 
@@ -185,9 +178,13 @@ impl<'a> ASTParser<'a> {
         Ok(self.ast.add_node(node))
     }
 
-    fn parse_next_statement_ast_node(&mut self, scope_id: ScopeId) -> SyntaxResult<Option<ASTNodeId>> {
+    fn parse_next_statement_ast_node(&mut self, scope_id: ScopeId, expected_indent_size: usize) -> CompilerResult<Option<ASTNodeId>> {
 
         if let Some(statement) = self.statements_iter.next() {
+
+            if statement.indent_size != expected_indent_size {
+                return Err(IndentTooLarge.at(statement.indent_token().span))
+            }
 
             let node_id = match statement.token_after_indent_type() {
                 Fn => self.parse_function_def(statement, scope_id)?,
@@ -209,15 +206,15 @@ impl<'a> ASTParser<'a> {
         }
     }
     
-    fn parse_global_nodes(&mut self) -> SyntaxResult<()> {
+    fn parse_global_nodes(&mut self) -> CompilerResult<()> {
 
         let global_scope_id = ScopeId::global();
-        while let Some(_node_id) = self.parse_next_statement_ast_node(global_scope_id)? {}
+        while let Some(_node_id) = self.parse_next_statement_ast_node(global_scope_id, 0)? {}
 
         Ok(())
     }
 
-    pub fn generate_ast(source_lines: TokenizedLines, ctx: &'a mut CompilerContext) -> SyntaxResult<AST> {
+    pub fn generate_ast(source_lines: TokenizedLines, ctx: &'a mut CompilerContext) -> CompilerResult<AST> {
 
         let statements: SourceStatements = source_lines.into();
         let mut parser = Self::new(statements, ctx);

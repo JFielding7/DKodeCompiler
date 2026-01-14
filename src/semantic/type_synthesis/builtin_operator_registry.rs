@@ -19,7 +19,7 @@ impl BuiltinOperatorRegistry for UnaryOperator {
         use UnaryOperator::*;
         use BuiltinType::*;
 
-        let operand_type = match type_arena.get(*operand_type_id) {
+        let operand_type = match type_arena.get_data_type(*operand_type_id) {
             Builtin(builtin_type) => builtin_type,
             _ => return None,
         };
@@ -59,46 +59,48 @@ impl BuiltinOperatorRegistry for BinaryOperator {
         } else if *self == CommaOperator {
             return Some(rhs_type_id)
         }
-        
-        let lhs_type = match type_arena.get(lhs_type_id) {
+
+        let lhs_type = match type_arena.get_data_type(lhs_type_id) {
             Builtin(builtin_type) => builtin_type,
             _ => return None,
         };
 
-        let rhs_type = match type_arena.get(rhs_type_id) {
+        let rhs_type = match type_arena.get_data_type(rhs_type_id) {
             Builtin(builtin_type) => builtin_type,
             _ => return None
         };
 
+        let operand_types = (lhs_type, rhs_type);
+
         let builtin_type_res = match self {
 
-            AddAssign | SubAssign | MulAssign | DivAssign | ModAssign => match (lhs_type, rhs_type) {
+            AddAssign | SubAssign | MulAssign | DivAssign | ModAssign => match operand_types {
                 (Int, Int) => Int,
                 _ => return None,
             },
 
-            LeftShiftAssign | RightShiftAssign => match (lhs_type, lhs_type) {
+            LeftShiftAssign | RightShiftAssign => match operand_types {
                 (Int, Int) => Int,
                 _ => return None,
             },
 
-            AndAssign | XorAssign | OrAssign => match (lhs_type, lhs_type) {
+            AndAssign | XorAssign | OrAssign => match operand_types {
                 (Int, Int) => Int,
                 _ => return None,
             },
 
-            Add => match (lhs_type, lhs_type) {
+            Add => match operand_types {
                 (Int, Int) => Int,
                 (String, String) => String,
                 _ => return None,
             },
 
-            Sub | Mul | Div | Mod => match (lhs_type, lhs_type) {
+            Sub | Mul | Div | Mod => match operand_types {
                 (Int, Int) => Int,
                 _ => return None,
             },
 
-            BitAnd | BitOr | BitXor | LeftShift | RightShift => match (lhs_type, lhs_type) {
+            BitAnd | BitOr | BitXor | LeftShift | RightShift => match operand_types {
                 (Int, Int) => Int,
                 _ => return None,
             },
@@ -111,12 +113,12 @@ impl BuiltinOperatorRegistry for BinaryOperator {
                 }
             },
 
-            LessThan | LessOrEqual | GreaterThan | GreaterOrEqual => match (lhs_type, lhs_type) {
+            LessThan | LessOrEqual | GreaterThan | GreaterOrEqual => match operand_types {
                 (Int, Int) | (String, String) => Bool,
                 _ => return None,
             },
 
-            LogicalAnd | LogicalOr => match (lhs_type, lhs_type) {
+            LogicalAnd | LogicalOr => match operand_types {
                 (Bool, Bool) => Bool,
                 _ => return None,
             },

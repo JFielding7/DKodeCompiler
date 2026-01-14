@@ -1,10 +1,10 @@
+use crate::error::compiler_error::CompilerResult;
 use crate::lexer::token::TokenType::{Comma, DoubleRightArrow, Greater, Less};
 use crate::source::source_span::SourceSpan;
-use crate::syntax::error::SyntaxResult;
 use crate::syntax::parser::token_stream::TokenStream;
 use crate::types::type_annotation::TypeAnnotation;
 
-fn assert_type_params_closed(token_stream: &mut TokenStream) -> SyntaxResult<()> {
+fn assert_type_params_closed(token_stream: &mut TokenStream) -> CompilerResult<()> {
     if token_stream.peek_matches(DoubleRightArrow) {
         if token_stream.is_curr_token_split() {
             token_stream.next();
@@ -18,7 +18,7 @@ fn assert_type_params_closed(token_stream: &mut TokenStream) -> SyntaxResult<()>
     Ok(())
 }
 
-fn parse_inner_types(token_stream: &mut TokenStream) -> SyntaxResult<Vec<TypeAnnotation>> {
+fn parse_inner_types(token_stream: &mut TokenStream) -> CompilerResult<Vec<TypeAnnotation>> {
 
     let mut inner_types = vec![parse_type_annotation(token_stream)?];
 
@@ -31,7 +31,7 @@ fn parse_inner_types(token_stream: &mut TokenStream) -> SyntaxResult<Vec<TypeAnn
     Ok(inner_types)
 }
 
-pub fn parse_type_annotation(token_stream: &mut TokenStream) -> SyntaxResult<TypeAnnotation> {
+pub fn parse_type_annotation(token_stream: &mut TokenStream) -> CompilerResult<TypeAnnotation> {
 
     let type_token = token_stream.expect_next_identifier()?;
     let type_name = type_token.symbol;

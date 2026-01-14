@@ -1,12 +1,12 @@
 use string_interner::DefaultSymbol;
 use crate::types::builtin_type::BuiltinType;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     Builtin(BuiltinType),
     UserDefined(DefaultSymbol),
-    Fn { 
-        param_types: Vec<DataTypeId>, 
+    Fn {
+        param_types: Vec<DataTypeId>,
         return_type: DataTypeId
     },
 }

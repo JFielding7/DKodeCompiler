@@ -1,6 +1,6 @@
 use crate::ast::arena_ast::AST;
 use crate::compiler_context::CompilerContext;
-use crate::semantic::error::SemanticResult;
+use crate::error::compiler_error::CompilerResult;
 use crate::semantic::name_resolution::NameResolver;
 use crate::semantic::type_synthesis::type_synthesizer::TypeSynthesizer;
 
@@ -8,14 +8,14 @@ pub mod error;
 pub mod type_synthesis;
 pub mod name_resolution;
 
-pub fn semantic_analysis(mut ast: AST, ctx: &mut CompilerContext) -> SemanticResult<AST> {
+pub fn semantic_analysis(ast: &AST, ctx: &mut CompilerContext) -> CompilerResult<()> {
     NameResolver::resolve(&ast, ctx)?;
 
     println!("{:?}", ctx.symbol_table);
 
-    TypeSynthesizer::synthesize(&mut ast, ctx)?;
+    TypeSynthesizer::synthesize(ast, ctx)?;
 
-    println!("{:?}", ast);
+    println!("{:?}", ctx.type_arena);
 
-    Ok(ast)
+    Ok(())
 }

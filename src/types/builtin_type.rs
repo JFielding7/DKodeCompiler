@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use strum::EnumIter;
 
 #[repr(usize)]
@@ -14,7 +15,7 @@ impl BuiltinType {
         self as usize
     }
 
-    pub fn from_string(s: &str) -> Option<Self> {
+    pub fn from_str(s: &str) -> Option<Self> {
         use BuiltinType::*;
 
         Some(match s {
@@ -22,6 +23,19 @@ impl BuiltinType {
             "int" => Int,
             "str" => String,
             _ => return None
+        })
+    }
+}
+
+impl std::fmt::Display for BuiltinType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        use BuiltinType::*;
+        
+        write!(f, "{}", match self {
+            Unit => "unit",
+            Bool => "bool",
+            Int => "int",
+            String => "str",
         })
     }
 }

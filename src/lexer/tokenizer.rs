@@ -2,11 +2,11 @@ use crate::compiler_context::CompilerContext;
 use crate::error::spanned_error::SpannableError;
 use crate::lexer::error::LexerError::{InvalidToken, UnalignedIndent};
 use crate::lexer::token::TokenType::Indent;
-use crate::lexer::token::{Token, TokenType};
+use crate::lexer::token::{Token, TokenType, INDENT_SIZE};
 use crate::source::source_file::SourceFile;
 use crate::source::source_span::SourceSpan;
+use crate::error::compiler_error::CompilerResult;
 use logos::Logos;
-use crate::lexer::error::LexerResult;
 
 type LineTokens = Vec<Token>;
 
@@ -26,11 +26,9 @@ fn get_indent_token(
     line_index: usize,
     content: &str,
     ctx: &mut CompilerContext
-) -> LexerResult<Token> {
-    const INDENT_SIZE: usize = 4;
-
+) -> CompilerResult<Token> {
     let indent_chars = content.chars().take_while(|&c| c == ' ').collect::<String>();
-    let indent = ctx.get_intern_symbol(indent_chars.as_str());
+    let indent = ctx.string_interner.get_intern_symbol(indent_chars.as_str());
 
     let indent_spaces = indent_chars.len();
     let span = SourceSpan::new(line_index, 0, indent_spaces);
@@ -50,7 +48,7 @@ fn tokenize_line(
     line_index: usize,
     content: &str,
     ctx: &mut CompilerContext
-) -> LexerResult<LineTokens> {
+) -> CompilerResult<LineTokens> {
     let mut tokens = vec![get_indent_token(line_index, content, ctx)?];
     let mut lexer = TokenType::lexer(content);
 
@@ -63,7 +61,7 @@ fn tokenize_line(
 
         tokens.push(Token::new(
             token_type,
-            ctx.get_intern_symbol(lexer.slice()),
+            ctx.string_interner.get_intern_symbol(lexer.slice()),
             source_span
         ));
     }
@@ -74,11 +72,11 @@ fn tokenize_line(
 pub fn lex_source_file(
     source_file: &SourceFile,
     ctx: &mut CompilerContext
-) -> LexerResult<TokenizedLines> {
+) -> CompilerResult<TokenizedLines> {
     let lines = source_file.into_iter()
         .enumerate()
         .map(|(i, content)| tokenize_line(i, content, ctx))
-        .collect::<LexerResult<Vec<LineTokens>>>()?;
+        .collect::<CompilerResult<Vec<LineTokens>>>()?;
 
     Ok(TokenizedLines(lines))
 }

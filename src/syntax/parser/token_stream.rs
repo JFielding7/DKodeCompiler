@@ -1,10 +1,9 @@
 use crate::source::source_span::SourceSpan;
 use crate::lexer::token::TokenType::Identifier;
 use crate::lexer::token::{Token, TokenType};
-use crate::syntax::error::{SyntaxError, SyntaxResult};
 use std::iter::Peekable;
 use std::slice::Iter;
-use string_interner::DefaultSymbol;
+use crate::error::compiler_error::CompilerResult;
 use crate::error::spanned_error::SpannableError;
 use crate::syntax::error::SyntaxError::ExpectedToken;
 
@@ -51,22 +50,22 @@ impl<'a> TokenStream<'a> {
         self.curr_token_split
     }
 
-    pub fn expect_next_token(&mut self, token_type: TokenType) -> SyntaxResult<&Token> {
+    pub fn expect_next_token(&mut self, token_type: TokenType) -> CompilerResult<&Token> {
 
         match self.next() {
-            None => Err(ExpectedToken(token_type).at(self.end_span())),
+            None => Err(ExpectedToken(token_type, None).at(self.end_span())),
 
             Some(token) => {
                 if *token == token_type {
                     Ok(token)
                 } else {
-                    Err(ExpectedToken(token_type).at(token.span))
+                    Err(ExpectedToken(token_type, Some(token.clone())).at(token.span))
                 }
             },
         }
     }
     
-    pub fn expect_next_identifier(&mut self) -> SyntaxResult<&Token> {
+    pub fn expect_next_identifier(&mut self) -> CompilerResult<&Token> {
         self.expect_next_token(Identifier)
     }
 

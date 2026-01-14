@@ -20,7 +20,7 @@ impl SourceSpan {
         }
     }
 
-    pub fn format_source_span(&self, source: &SourceFile) -> String {
+    pub fn format_source_span(&self, source: SourceFile) -> String {
         let line_num = self.line_index + 1;
         let line_num_str = line_num.to_string();
 

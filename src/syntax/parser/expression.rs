@@ -7,13 +7,13 @@ use crate::ast::index_node::IndexNode;
 use crate::ast::unary_operator_node::{UnaryOperatorNode};
 use crate::ast::variable_node::VariableNode;
 use crate::compiler_context::scope::ScopeId;
+use crate::error::compiler_error::CompilerResult;
 use crate::error::spanned_error::SpannableError;
 use crate::lexer::token::TokenType::*;
 use crate::lexer::token::{Token, TokenType};
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
 use crate::syntax::error::SyntaxError::{InvalidExpression, UnmatchedGroupOpening};
-use crate::syntax::error::SyntaxResult;
 use crate::operators::precedence::OperatorPrecedenceGroup;
 use crate::operators::precedence::OperatorPrecedenceGroup::Prefix;
 use crate::syntax::parser::token_stream::TokenStream;
@@ -180,7 +180,7 @@ impl<'a> ExpressionParser<'a> {
         }
     }
 
-    fn parse_token(&mut self, token: &Token) -> SyntaxResult<ASTNodeId> {
+    fn parse_token(&mut self, token: &Token) -> CompilerResult<ASTNodeId> {
         use ASTNodeType::*;
 
         let token_symbol = token.symbol;
@@ -195,7 +195,7 @@ impl<'a> ExpressionParser<'a> {
         Ok(self.ast.add_node(node))
     }
 
-    fn assert_group_closed(&mut self, open_token: &Token) -> SyntaxResult<()> {
+    fn assert_group_closed(&mut self, open_token: &Token) -> CompilerResult<()> {
         if self.token_stream.peek_matches(close_token(open_token)) {
             self.token_stream.next();
             Ok(())
@@ -204,7 +204,7 @@ impl<'a> ExpressionParser<'a> {
         }
     }
 
-    fn parse_required_grouped_expression(&mut self, open_token: &Token) -> SyntaxResult<ASTNodeId> {
+    fn parse_required_grouped_expression(&mut self, open_token: &Token) -> CompilerResult<ASTNodeId> {
         if self.token_stream.empty() {
             return Err(UnmatchedGroupOpening(open_token.token_type).at(open_token.span));
         }
@@ -215,7 +215,7 @@ impl<'a> ExpressionParser<'a> {
         Ok(group)
     }
 
-    fn parse_optional_grouped_expression(&mut self, open_token: &Token) -> SyntaxResult<Option<ASTNodeId>> {
+    fn parse_optional_grouped_expression(&mut self, open_token: &Token) -> CompilerResult<Option<ASTNodeId>> {
         let group = match self.token_stream.peek() {
             Some(&token) => {
                 if *token == CloseParen {
@@ -231,7 +231,7 @@ impl<'a> ExpressionParser<'a> {
         Ok(group)
     }
 
-    fn parse_accessed_member(&mut self) -> SyntaxResult<Member> {
+    fn parse_accessed_member(&mut self) -> CompilerResult<Member> {
         let member_name = self.token_stream.expect_next_token(Identifier)?;
         let member_name_symbol = member_name.symbol;
 
@@ -252,7 +252,7 @@ impl<'a> ExpressionParser<'a> {
         }
     }
 
-    fn parse_variable(&mut self, token: &Token) -> SyntaxResult<ASTNodeId> {
+    fn parse_variable(&mut self, token: &Token) -> CompilerResult<ASTNodeId> {
         let type_annotation = if self.token_stream.peek_matches(Colon) {
             self.token_stream.next();
             Some(parse_type_annotation(&mut self.token_stream)?)
@@ -264,7 +264,7 @@ impl<'a> ExpressionParser<'a> {
         Ok(self.ast.add_node(var_node))
     }
 
-    fn nud_hook(&mut self) -> SyntaxResult<ASTNodeId> {
+    fn nud_hook(&mut self) -> CompilerResult<ASTNodeId> {
 
         match self.token_stream.next() {
             None => Err(InvalidExpression.at(self.token_stream.prev_span())),
@@ -290,7 +290,7 @@ impl<'a> ExpressionParser<'a> {
         }
     }
 
-    fn led_hook(&mut self, token: &Token, left_node: ASTNodeId, right_precedence: u8) -> SyntaxResult<ASTNodeId> {
+    fn led_hook(&mut self, token: &Token, left_node: ASTNodeId, right_precedence: u8) -> CompilerResult<ASTNodeId> {
         let token_span = token.span;
 
         let node = if let Some(op_type) = binary_operator_type(token) {
@@ -319,7 +319,7 @@ impl<'a> ExpressionParser<'a> {
         Ok(self.ast.add_node(node))
     }
 
-    fn parse_expression_rec(&mut self, curr_precedence: u8) -> SyntaxResult<ASTNodeId> {
+    fn parse_expression_rec(&mut self, curr_precedence: u8) -> CompilerResult<ASTNodeId> {
 
         if self.token_stream.empty() {
             return Err(InvalidExpression.at(self.token_stream.end_span()))
@@ -349,7 +349,7 @@ impl<'a> ExpressionParser<'a> {
         Ok(left_node_id)
     }
 
-    pub fn parse(token_stream: TokenStream<'a>, ast_arena: &'a mut AST, scope: ScopeId) -> SyntaxResult<ASTNodeId> {
+    pub fn parse(token_stream: TokenStream<'a>, ast_arena: &'a mut AST, scope: ScopeId) -> CompilerResult<ASTNodeId> {
         ExpressionParser::new(token_stream, ast_arena, scope).parse_expression_rec(0)
     }
 }

@@ -3,7 +3,8 @@ use logos::Logos;
 use string_interner::DefaultSymbol;
 use crate::source::source_span::SourceSpan;
 use TokenType::*;
-use crate::compiler_context::CompilerContext;
+
+pub const INDENT_SIZE: usize = 4;
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -152,14 +153,6 @@ impl Token {
             OpenParen |
             Comma => false,
             _ => true,
-        }
-    }
-
-    pub fn display(&self, ctx: &mut CompilerContext) -> String {
-        if let Some(s) = ctx.get_str(self.symbol) {
-            format!("'{}'", s)
-        } else {
-            format!("<invalid symbol {:?}>", self.symbol)
         }
     }
 }
