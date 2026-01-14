@@ -13,11 +13,14 @@ pub fn parse_function_name(token_stream: &mut TokenStream) -> SyntaxResult<Defau
 }
 
 fn parse_parameter(token_stream: &mut TokenStream) -> SyntaxResult<Parameter> {
-    let param_name = token_stream.expect_next_token(Identifier)?.symbol;
+    let param_token = token_stream.expect_next_token(Identifier)?;
+    let param_name = param_token.symbol;
+    let param_span = param_token.span;
+
     token_stream.expect_next_token(Colon)?;
     let type_annotation = parse_type_annotation(token_stream)?;
 
-    Ok(Parameter::new(param_name, type_annotation))
+    Ok(Parameter::new(param_name, type_annotation, param_span))
 }
 
 pub fn parse_parameters(token_stream: &mut TokenStream) -> SyntaxResult<Vec<Parameter>> {

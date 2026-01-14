@@ -1,6 +1,6 @@
 use crate::ast::arena_ast::{ASTNodeId, AST};
 use crate::ast::ast_node::{ASTNodeType, ASTNodeLocation};
-use crate::ast::for_node::ForNode;
+use crate::ast::for_node::{ForNode, ForVariable};
 use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::{ConditionBlock, IfNode};
 use crate::ast::while_node::WhileNode;
@@ -17,6 +17,7 @@ use crate::syntax::parser::statement::Statement;
 use std::iter::Peekable;
 use std::vec::IntoIter;
 use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
+use crate::ast::block_body::Block;
 use crate::ast::variable_node::VariableNode;
 use crate::compiler_context::CompilerContext;
 use crate::compiler_context::scope::ScopeId;
@@ -49,7 +50,7 @@ impl<'a> ASTParser<'a> {
         let mut children = Vec::new();
 
         while let Some(child) =self.statements_iter.peek() {
-            if child.indent_size < indent_size {
+            if child.indent_size <= indent_size {
                 break;
             }
 
@@ -57,7 +58,7 @@ impl<'a> ASTParser<'a> {
                 return Err(IndentTooLarge.at(child.indent_token().span))
             }
 
-            if let Some(child) = self.parse_next_ast_node(scope_id)? {
+            if let Some(child) = self.parse_next_statement_ast_node(scope_id)? {
                 children.push(child);
             }
         }
@@ -76,7 +77,8 @@ impl<'a> ASTParser<'a> {
         
         let return_type = parse_return_type(&mut token_stream)?;
         
-        let body = self.parse_children(&func_def_statement, body_scope_id)?;
+        let body_nodes = self.parse_children(&func_def_statement, body_scope_id)?;
+        let body = Block::new(body_nodes, body_scope_id);
         
         let span = func_def_statement.full_span();
 
@@ -84,8 +86,6 @@ impl<'a> ASTParser<'a> {
             name, params, body, return_type
         ).at(span, scope_id);
 
-        self.ctx.symbol_table.insert(name, span, scope_id);
-        
         Ok(self.ast.add_node(func_def_node))
     }
 
@@ -99,7 +99,8 @@ impl<'a> ASTParser<'a> {
         )?;
         
         let if_body_scope_id = self.ctx.symbol_table.add_scope_with_parent(scope_id);
-        let if_body = self.parse_children(&if_statement, if_body_scope_id)?;
+        let if_body_nodes = self.parse_children(&if_statement, if_body_scope_id)?;
+        let if_body = Block::new(if_body_nodes, if_body_scope_id);
 
         let mut condition_blocks = vec![ConditionBlock::new(if_cond, if_body)];
 
@@ -115,7 +116,8 @@ impl<'a> ASTParser<'a> {
             )?;
             
             let elif_body_scope_id = self.ctx.symbol_table.add_scope_with_parent(scope_id);
-            let elif_body = self.parse_children(&elif_statement, elif_body_scope_id)?;
+            let elif_body_nodes = self.parse_children(&elif_statement, elif_body_scope_id)?;
+            let elif_body = Block::new(elif_body_nodes, elif_body_scope_id);
 
             condition_blocks.push(ConditionBlock::new(elif_cond, elif_body));
         }
@@ -126,7 +128,8 @@ impl<'a> ASTParser<'a> {
                 .expect("Statement Expected");
 
             let else_body_scope_id = self.ctx.symbol_table.add_scope_with_parent(scope_id);
-            Some(self.parse_children(&else_statement, else_body_scope_id)?)
+            let else_body_nodes = self.parse_children(&else_statement, else_body_scope_id)?;
+            Some(Block::new(else_body_nodes, else_body_scope_id))
         } else {
             None
         };
@@ -139,19 +142,19 @@ impl<'a> ASTParser<'a> {
 
     fn parse_while_loop(&mut self, while_statement: Statement, scope_id: ScopeId) -> SyntaxResult<ASTNodeId> {
         const TOKENS_BEFORE_COND: usize = 2;
-
-        let while_scope_id = self.ctx.symbol_table.add_scope_with_parent(scope_id);
-
+        
         let while_cond = ExpressionParser::parse(
             while_statement.suffix_stream(TOKENS_BEFORE_COND),
             &mut self.ast,
-            while_scope_id
+            scope_id
         )?;
 
-        let while_body = self.parse_children(&while_statement, while_scope_id)?;
+        let while_body_scope_id = self.ctx.symbol_table.add_scope_with_parent(scope_id);
+        let while_body_nodes = self.parse_children(&while_statement, while_body_scope_id)?;
+        let while_body = Block::new(while_body_nodes, while_body_scope_id);
 
         let while_node = WhileNode::new(while_cond, while_body)
-            .at(while_statement.full_span(), while_scope_id);
+            .at(while_statement.full_span(), scope_id);
 
         Ok(self.ast.add_node(while_node))
     }
@@ -163,9 +166,7 @@ impl<'a> ASTParser<'a> {
         let for_body_scope_id = self.ctx.symbol_table.add_scope_with_parent(scope_id);
 
         let item_identifier = token_stream.expect_next_identifier()?;
-        let item_var = VariableNode::new(item_identifier.symbol, None)
-            .at(item_identifier.span, for_body_scope_id);
-        let item_var_id = self.ast.add_node(item_var);
+        let item_var = ForVariable::new(item_identifier.symbol, item_identifier.span);
 
         token_stream.expect_next_token(In)?;
 
@@ -175,17 +176,22 @@ impl<'a> ASTParser<'a> {
             scope_id
         )?;
         
-        let for_body = self.parse_children(&for_statement, for_body_scope_id)?;
+        let for_body_nodes = self.parse_children(&for_statement, for_body_scope_id)?;
+        let for_body = Block::new(for_body_nodes, for_body_scope_id);
 
-        let node = ForNode::new(item_var_id, iterator, for_body)
-            .at(for_statement.full_span(), for_body_scope_id);
+        let node = ForNode::new(item_var, iterator, for_body)
+            .at(for_statement.full_span(), scope_id);
 
         Ok(self.ast.add_node(node))
     }
 
-    fn parse_next_ast_node(&mut self, scope_id: ScopeId) -> SyntaxResult<Option<ASTNodeId>> {
+    fn parse_next_statement_ast_node(&mut self, scope_id: ScopeId) -> SyntaxResult<Option<ASTNodeId>> {
+
+        println!("{:?}", scope_id);
         
         if let Some(statement) = self.statements_iter.next() {
+
+            println!("{:?}", statement);
 
             let node_id = match statement.token_after_indent_type() {
                 Fn => self.parse_function_def(statement, scope_id)?,
@@ -208,10 +214,9 @@ impl<'a> ASTParser<'a> {
     }
     
     fn parse_global_nodes(&mut self) -> SyntaxResult<()> {
-        
+
         let global_scope_id = ScopeId::global();
-        
-        while let Some(_) = self.parse_next_ast_node(global_scope_id)? {}
+        while let Some(_node_id) = self.parse_next_statement_ast_node(global_scope_id)? {}
 
         Ok(())
     }

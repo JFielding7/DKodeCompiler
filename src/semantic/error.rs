@@ -17,6 +17,9 @@ pub enum SemanticError {
     #[error("Error: Cannot infer type")]
     TypeInference,
 
+    #[error("Error: Duplicate parameter name")]
+    DuplicateParameterName,
+
     #[error("Error: Undefined variable")]
     UndefinedVariable,
 }

@@ -43,44 +43,6 @@ impl AST {
     }
 }
 
-// pub struct ASTStatementIter<'a> {
-//     ast: &'a AST,
-//     curr_statement: usize,
-// }
-// 
-// impl<'a> ASTStatementIter<'a> {
-//     pub fn new(ast: &'a AST) -> Self {
-//         Self { 
-//             ast, 
-//             curr_statement: 0 
-//         }
-//     }
-// }
-// 
-// impl<'a> Iterator for ASTStatementIter<'a> {
-//     type Item = NodeIdIter;
-//     
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let curr_statement = self.curr_statement;
-//         let statement_roots = &self.ast.statement_root_node_ids;
-//         
-//         if curr_statement >= statement_roots.len() {
-//             return None;
-//         }
-// 
-//         let start = if curr_statement == 0 {
-//             0
-//         } else {
-//             statement_roots[curr_statement - 1].0 + 1
-//         };
-//         let end = statement_roots[curr_statement].0 + 1;
-// 
-//         self.curr_statement += 1;
-// 
-//         Some((start..end).map(|id| ASTNodeId(id)))
-//     }
-// }
-
 #[derive(Debug, Copy, Clone)]
 pub struct ASTNodeId(usize);
 pub type NodeIdIter = Map<Range<usize>, fn(usize) -> ASTNodeId>;

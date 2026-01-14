@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use string_interner::DefaultSymbol;
 use crate::compiler_context::symbol::Symbol;
@@ -41,11 +42,17 @@ impl Scope {
         self.symbols.contains_key(&name)
     }
 
-    pub fn insert(&mut self, symbol: Symbol) {
-        if !self.symbols.contains_key(&symbol.name) {
-            self.symbols.insert(symbol.name, symbol);
+    pub fn insert(&mut self, symbol: Symbol) -> bool {
+    
+        match self.symbols.entry(symbol.name) {
+            Entry::Vacant(entry) => {
+                entry.insert(symbol);
+                true
+            }
+            Entry::Occupied(_) => false,
         }
     }
+
 }
 
 #[derive(Debug, Copy, Clone)]

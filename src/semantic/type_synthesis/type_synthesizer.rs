@@ -35,14 +35,10 @@ impl<'a> TypeSynthesizer<'a> {
     }
     
     fn compute_variable_type(&self, var_name: DefaultSymbol) -> SemanticResult<Option<DataTypeId>> {
-        println!("looking");
 
         match self.ctx.symbol_table.lookup(var_name, self.curr_scope) {
             None => Ok(None),
-            Some(symbol) => {
-                println!("found {:?}", symbol.data_type);
-                Ok(symbol.data_type)
-            }
+            Some(symbol) => Ok(symbol.data_type)
         }
     }
 
@@ -64,6 +60,18 @@ impl<'a> TypeSynthesizer<'a> {
             None => Err(MismatchedUnaryOperatorTypes(operator_type, operand_type_id)
                 .at(operand_node.span)
             ),
+        }
+    }
+
+    fn assign_variable_type(&mut self, var_id: ASTNodeId, data_type_id: DataTypeId) -> SemanticResult<()> {
+        let node = self.ast.lookup(var_id);
+
+        if let Variable(var) = &node.node_type {
+            self.ctx.symbol_table.assign_type(data_type_id, var.name, node.scope_id);
+            self.ast.lookup_mut(var_id).data_type_id = Some(data_type_id);
+            Ok(())
+        } else {
+            Err(TypeInference.at(node.span))
         }
     }
 
@@ -92,13 +100,7 @@ impl<'a> TypeSynthesizer<'a> {
             Some(data_type) => data_type,
             None => {
                 return if operator_type == Assign {
-                    if let Variable(var) = &self.ast.lookup(left).node_type {
-                        self.ctx.symbol_table.assign_type(rhs_type_id, var.name, left_node.scope_id);
-                    } else {
-                        unimplemented!("Assign to non variable node")
-                    }
-
-                    self.ast.lookup_mut(left).data_type_id = rhs_type_opt;
+                    self.assign_variable_type(left, rhs_type_id)?;
                     Ok(rhs_type_id)
                 } else {
                     Err(TypeInference.at(left_node.span))

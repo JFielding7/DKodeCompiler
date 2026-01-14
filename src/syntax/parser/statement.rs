@@ -5,6 +5,7 @@ use crate::syntax::parser::token_stream::TokenStream;
 use std::ops::Deref;
 use std::vec::IntoIter;
 
+#[derive(Debug)]
 pub struct Statement {
     pub indent_size: usize,
     pub tokens: Vec<Token>,

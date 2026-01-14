@@ -36,7 +36,7 @@ impl<'a> TokenStream<'a> {
         self.prev_token.span
     }
 
-    pub(crate) fn end_span(&mut self) -> SourceSpan {
+    pub fn end_span(&mut self) -> SourceSpan {
         let mut span = self.prev_span();
         span.start = span.end;
         span.end += 1;

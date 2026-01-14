@@ -42,7 +42,7 @@ impl SymbolTable {
         self.scopes[scope_id.as_usize()].contains(name)
     }
 
-    pub fn insert(&mut self, name: DefaultSymbol, def_span: SourceSpan, scope_id: ScopeId) {
+    pub fn insert(&mut self, name: DefaultSymbol, def_span: SourceSpan, scope_id: ScopeId) -> bool {
         let symbol = Symbol::new(name, def_span);
         self.scopes[scope_id.as_usize()].insert(symbol)
     }
