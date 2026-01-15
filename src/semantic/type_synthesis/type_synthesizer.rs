@@ -1,6 +1,6 @@
 use crate::ast::arena_ast::AST;
 use crate::ast::ast_node::ASTNodeType::Variable;
-use crate::ast::ast_node::{ASTNodeId, ASTNodeType};
+use crate::ast::ast_node::{ASTNode, ASTNodeId, ASTNodeType};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::function_def_node::FunctionDefNode;
 use crate::compiler_context::scope::ScopeId;
@@ -16,6 +16,7 @@ use crate::source::source_span::SourceSpan;
 use crate::types::builtin_type::BuiltinType::{Int, String, Unit};
 use crate::types::data_type::{DataType, DataTypeId};
 use string_interner::DefaultSymbol;
+use crate::ast::function_call_node::FunctionCallNode;
 
 pub struct TypeSynthesizer<'a> {
     ast: &'a AST,
@@ -188,6 +189,91 @@ impl<'a> TypeSynthesizer<'a> {
         Ok(self.ctx.type_arena.builtin_type_id(Unit))
     }
 
+    fn check_param_types(&self, param_types: &Vec<DataTypeId>, arg_ids: &Vec<ASTNodeId>) -> CompilerResult<()> {
+        let param_iter = param_types.iter().zip(arg_ids.iter().rev());
+
+        for (&formal_param_type_id, &param_node_id) in param_iter {
+            let param_node = self.ast.lookup(param_node_id);
+
+            match self.get_node_data_type(param_node_id) {
+                None => return Err(TypeInference.at(param_node.span)),
+                Some(actual_param_type_id) => {
+                    if actual_param_type_id != formal_param_type_id {
+                        return Err(MismatchedTypes {
+                            expected: formal_param_type_id,
+                            actual: actual_param_type_id
+                        }.at(param_node.span))
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn function_arg_nodes(&self, func_call_node: &FunctionCallNode) -> Vec<ASTNodeId> {
+        let mut args_types = Vec::new();
+
+        let mut curr_arg_id = match func_call_node.args {
+            Some(args_id) => args_id,
+            None => return args_types,
+        };
+
+        loop {
+            args_types.push(curr_arg_id);
+
+            match &self.ast.lookup(curr_arg_id).node_type {
+                ASTNodeType::BinaryOperator(op) => {
+
+                    match op.op_type {
+                        BinaryOperator::CommaOperator => curr_arg_id = op.left,
+                        _ => break
+                    }
+                }
+                _ => break
+            }
+        }
+
+        args_types
+    }
+
+    fn compute_function_call_type(
+        &self,
+        func_call_node: &FunctionCallNode,
+        span: SourceSpan,
+    ) -> CompilerResult<DataTypeId> {
+        let func_node_id = func_call_node.function;
+        let func_node = self.ast.lookup(func_node_id);
+        let func_type_opt = self.get_node_data_type(func_node_id);
+
+        Ok(match func_type_opt {
+            Some(func_type) => {
+                use DataType::*;
+
+                match self.ctx.type_arena.get_data_type(func_type) {
+                    Fn { param_types, return_type } => {
+                        let arg_types = self.function_arg_nodes(func_call_node);
+                        let actual_args_count = arg_types.len();
+                        let expected_args_count = param_types.len();
+
+                        if actual_args_count != expected_args_count {
+                            return Err(IncorrectArgumentCount {
+                                expected: expected_args_count,
+                                actual: actual_args_count
+                            }.at(span))
+                        }
+
+                        self.check_param_types(&param_types, &arg_types)?;
+
+                        *return_type
+                    },
+                    _ => return Err(FunctionExpected.at(func_node.span))
+                }
+            },
+            None => return Err(TypeInference.at(func_node.span))
+        })
+    }
+
     fn compute_type(&mut self, ast_node_id: ASTNodeId) -> CompilerResult<Option<DataTypeId>> {
         use ASTNodeType::*;
 
@@ -218,7 +304,11 @@ impl<'a> TypeSynthesizer<'a> {
             }
 
             FunctionDef(func_def_node) => {
-               Some(self.compute_function_signature_types(func_def_node, node.scope_id)?)
+                Some(self.compute_function_signature_types(func_def_node, node.scope_id)?)
+            }
+
+            FunctionCall(func_call_node) => {
+                Some(self.compute_function_call_type(func_call_node, node.span)?)
             }
 
             _ => unimplemented!("{:?} type resolution unimplemented", node.node_type),

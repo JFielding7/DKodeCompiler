@@ -30,6 +30,6 @@ impl OperatorPrecedenceGroup {
     }
 
     pub fn is_left_assoc(self) -> bool {
-        matches!(self, Assign | Prefix)
+        !matches!(self, Assign | Prefix)
     }
 }

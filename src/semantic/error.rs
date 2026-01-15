@@ -12,11 +12,23 @@ pub enum SemanticError {
 
     MismatchedBinaryOperatorTypes(BinaryOperator, DataTypeId, DataTypeId),
 
+    MismatchedTypes {
+        expected: DataTypeId,
+        actual: DataTypeId,
+    },
+
     DuplicateParameterName(DefaultSymbol),
 
     DuplicateFunctionName(DefaultSymbol),
 
     UndefinedVariable(DefaultSymbol),
+
+    FunctionExpected,
+
+    IncorrectArgumentCount {
+        expected: usize,
+        actual: usize,
+    },
 
     UndefinedType,
 
@@ -37,6 +49,14 @@ impl SpannableError for SemanticError {
                         ctx.type_arena.format_type(*right, &ctx.string_interner)
                 )
             }
+            MismatchedTypes { expected, actual } => {
+                let string_interner = &ctx.string_interner;
+                let type_arena = &ctx.type_arena;
+                format!("Error: Mismatched types: Expected {}, but got {}",
+                        type_arena.format_type(*expected, string_interner),
+                        type_arena.format_type(*actual, string_interner)
+                )
+            }
             UndefinedVariable(var_name) => {
                 format!("Error: Undefined variable: {}", 
                         ctx.string_interner.get_str(*var_name)
@@ -51,6 +71,12 @@ impl SpannableError for SemanticError {
                 format!("Error: Duplicate function definition: {}", 
                         ctx.string_interner.get_str(*func_name)
                 )
+            }
+            FunctionExpected => {
+                "Error: Function expected".to_string()
+            }
+            IncorrectArgumentCount { expected, actual } => {
+                format!("Error: Expected {expected} arguments, but got {actual}")
             }
             UndefinedType => "Error: Undefined type".to_string(),
             TypeInference => "Error: Cannot infer type".to_string(),
