@@ -39,7 +39,19 @@ impl SymbolTable {
     }
     
     pub fn contains(&self, name: DefaultSymbol, scope_id: ScopeId) -> bool {
-        self.scopes[scope_id.as_usize()].contains(name)
+        let mut curr_scope = Some(scope_id);
+
+        while let Some(id) = curr_scope {
+            let scope = &self.scopes[id.as_usize()];
+
+            if scope.contains(name) {
+                return true;
+            }
+
+            curr_scope = scope.parent;
+        }
+
+        false
     }
 
     pub fn insert(&mut self, name: DefaultSymbol, def_span: SourceSpan, scope_id: ScopeId) -> bool {

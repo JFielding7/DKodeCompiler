@@ -26,7 +26,7 @@ fn compile_source_file(source_file: &SourceFile, compiler_context: &mut Compiler
     
     let annotated_ast = semantic_analysis(ast, compiler_context)?;
 
-    println!("{:?}", annotated_ast);
+    // println!("{:?}", annotated_ast);
 
     Ok(())
 }

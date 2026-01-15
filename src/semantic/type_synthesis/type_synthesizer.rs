@@ -127,7 +127,6 @@ impl<'a> TypeSynthesizer<'a> {
             &self.ctx.type_arena
         ) {
             Some(data_type) => {
-                println!("{:?} {:?}", lhs_type_id, rhs_type_id);
                 Ok(data_type)
             },
             None => Err(MismatchedBinaryOperatorTypes(operator_node.op_type, lhs_type_id, rhs_type_id)
@@ -303,8 +302,8 @@ impl<'a> TypeSynthesizer<'a> {
                 Some(self.ctx.type_arena.builtin_type_id(Unit))
             }
 
-            FunctionDef(func_def_node) => {
-                Some(self.compute_function_signature_types(func_def_node, node.scope_id)?)
+            FunctionDef(_) => {
+                unreachable!("function definition should already be synthesized")
             }
 
             FunctionCall(func_call_node) => {
@@ -331,7 +330,8 @@ impl<'a> TypeSynthesizer<'a> {
             let node = self.ast.lookup(node_id);
 
             if let FunctionDef(func_def_node) = &node.node_type {
-                self.compute_function_signature_types(func_def_node, node.scope_id)?;
+                let data_type_id = self.compute_function_signature_types(func_def_node, node.scope_id)?;
+                self.assign_node_data_type(node_id, Some(data_type_id));
             }
         }
 

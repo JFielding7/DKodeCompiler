@@ -20,8 +20,6 @@ impl<OpType: Eq + Hash + BuiltinOperatorRegistry> OperatorRegistry<OpType> {
             return Some(data_type_id);
         }
 
-        println!("hello");
-
         let definitions = match self.implementations.get(&op_type) {
             Some(definitions) => definitions,
             None => return None,
