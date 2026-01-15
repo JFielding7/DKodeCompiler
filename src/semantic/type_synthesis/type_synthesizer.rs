@@ -1,5 +1,5 @@
 use crate::ast::arena_ast::AST;
-use crate::ast::ast_node::ASTNodeType::Variable;
+use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
 use crate::ast::ast_node::{ASTNode, ASTNodeId, ASTNodeType};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::function_def_node::FunctionDefNode;
@@ -20,7 +20,7 @@ use crate::ast::function_call_node::FunctionCallNode;
 
 pub struct TypeSynthesizer<'a> {
     ast: &'a AST,
-    ast_node_data_type: Vec<Option<DataTypeId>>,
+    ast_node_data_types: Vec<Option<DataTypeId>>,
     unary_op_impl: OperatorRegistry<UnaryOperator>,
     binary_op_impl: OperatorRegistry<BinaryOperator>,
     ctx: &'a mut CompilerContext,
@@ -32,7 +32,7 @@ impl<'a> TypeSynthesizer<'a> {
 
         Self {
             ast,
-            ast_node_data_type,
+            ast_node_data_types: ast_node_data_type,
             unary_op_impl: OperatorRegistry::new(),
             binary_op_impl: OperatorRegistry::new(),
             ctx,
@@ -40,11 +40,11 @@ impl<'a> TypeSynthesizer<'a> {
     }
 
     fn get_node_data_type(&self, node_id: ASTNodeId) -> Option<DataTypeId> {
-        self.ast_node_data_type[node_id.as_usize()]
+        self.ast_node_data_types[node_id.as_usize()]
     }
 
     fn assign_node_data_type(&mut self, node_id: ASTNodeId, data_type_id: Option<DataTypeId>) {
-        self.ast_node_data_type[node_id.as_usize()] = data_type_id;
+        self.ast_node_data_types[node_id.as_usize()] = data_type_id;
     }
     
     fn compute_variable_type(
@@ -65,7 +65,7 @@ impl<'a> TypeSynthesizer<'a> {
     ) -> CompilerResult<DataTypeId> {
         let operand_node = self.ast.lookup(operand);
 
-        let operand_type_id = match self.ast_node_data_type[operand.as_usize()] {
+        let operand_type_id = match self.ast_node_data_types[operand.as_usize()] {
             Some(e) => e,
             None => return Err(TypeInference.at(operand_node.span)),
         };
@@ -83,7 +83,7 @@ impl<'a> TypeSynthesizer<'a> {
 
         if let Variable(var) = &node.node_type {
             self.ctx.symbol_table.assign_type(data_type_id, var.name, node.scope_id);
-            self.ast_node_data_type[var_id.as_usize()] = Some(data_type_id);
+            self.ast_node_data_types[var_id.as_usize()] = Some(data_type_id);
             Ok(())
         } else {
             Err(TypeInference.at(node.span))
@@ -326,14 +326,36 @@ impl<'a> TypeSynthesizer<'a> {
         Ok(())
     }
 
-    pub fn synthesize(ast: &AST, ctx: &mut CompilerContext) -> CompilerResult<()> {
-        let mut synthesizer = TypeSynthesizer::new(ast, ctx);
-        synthesizer.compute_ast_types()?;
+    fn compute_function_types(&mut self) -> CompilerResult<()> {
+        for node_id in self.ast.ast_node_id_iter() {
+            let node = self.ast.lookup(node_id);
 
-        for data_type_id in synthesizer.ast_node_data_type {
-
+            if let FunctionDef(func_def_node) = &node.node_type {
+                self.compute_function_signature_types(func_def_node, node.scope_id)?;
+            }
         }
 
         Ok(())
+    }
+
+    pub fn synthesize(ast: &AST, ctx: &mut CompilerContext) -> CompilerResult<Vec<DataTypeId>> {
+        let mut synthesizer = TypeSynthesizer::new(&ast, ctx);
+        synthesizer.compute_function_types()?;
+        synthesizer.compute_ast_types()?;
+
+        let mut ast_node_types = Vec::with_capacity(synthesizer.ast_node_data_types.len());
+
+        for (i, &node_data_type) in synthesizer.ast_node_data_types.iter().enumerate() {
+            match node_data_type {
+                None => return Err(TypeInference.at(
+                    ast.lookup(ASTNodeId(i)).span
+                )),
+                Some(node_type) => {
+                    ast_node_types.push(node_type);
+                }
+            }
+        }
+
+        Ok(ast_node_types)
     }
 }

@@ -10,7 +10,6 @@ use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::SpannableError;
 use crate::lexer::token::TokenType;
 use crate::lexer::token::TokenType::*;
-use crate::lexer::tokenizer::TokenizedLines;
 use crate::syntax::error::SyntaxError::IndentTooLarge;
 use crate::syntax::parser::expression::ExpressionParser;
 use crate::syntax::parser::function_signature::{parse_function_name, parse_parameters, parse_return_type};
@@ -19,9 +18,10 @@ use crate::syntax::parser::statement::Statement;
 use std::iter::Peekable;
 use std::vec::IntoIter;
 use crate::error::compiler_error::CompilerResult;
+use crate::lexer::TokenizedLines;
 
 pub struct ASTParser<'a> {
-    ast: AST,
+    pub ast: AST,
     statements_iter: Peekable<IntoIter<Statement>>,
     ctx: &'a mut CompilerContext,
 }
@@ -206,21 +206,12 @@ impl<'a> ASTParser<'a> {
         }
     }
     
-    fn parse_global_nodes(&mut self) -> CompilerResult<()> {
+    pub fn parse_global_nodes(&mut self) -> CompilerResult<()> {
 
         let global_scope_id = ScopeId::global();
         while let Some(_node_id) = self.parse_next_statement_ast_node(global_scope_id, 0)? {}
 
         Ok(())
-    }
-
-    pub fn generate_ast(source_lines: TokenizedLines, ctx: &'a mut CompilerContext) -> CompilerResult<AST> {
-
-        let statements: SourceStatements = source_lines.into();
-        let mut parser = Self::new(statements, ctx);
-        parser.parse_global_nodes()?;
-        
-        Ok(parser.ast)
     }
 }
 

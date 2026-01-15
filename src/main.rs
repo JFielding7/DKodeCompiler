@@ -1,12 +1,12 @@
 use crate::ast::arena_ast::AST;
 use crate::compiler_context::CompilerContext;
 use crate::error::Error;
-use crate::lexer::tokenizer::lex_source_file;
 use crate::semantic::semantic_analysis;
 use crate::source::source_file::SourceFile;
-use crate::syntax::parser::ast_parser::ASTParser;
 use error::Result;
 use crate::error::compiler_error::CompilerResult;
+use crate::lexer::lexical_analysis;
+use crate::syntax::syntax_analysis;
 
 mod lexer;
 mod syntax;
@@ -20,13 +20,13 @@ mod operators;
 
 fn compile_source_file(source_file: &SourceFile, compiler_context: &mut CompilerContext) -> CompilerResult<()> {
 
-    let source_lines = lex_source_file(source_file, compiler_context)?;
+    let source_lines = lexical_analysis(source_file, compiler_context)?;
 
-    let ast: AST = ASTParser::generate_ast(source_lines, compiler_context)?;
+    let ast: AST = syntax_analysis(source_lines, compiler_context)?;
     
-    semantic_analysis(&ast, compiler_context)?;
+    let annotated_ast = semantic_analysis(ast, compiler_context)?;
 
-    println!("{:?}", ast);
+    println!("{:?}", annotated_ast);
 
     Ok(())
 }

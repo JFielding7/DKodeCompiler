@@ -3,19 +3,35 @@ use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::semantic::name_resolution::NameResolver;
 use crate::semantic::type_synthesis::type_synthesizer::TypeSynthesizer;
+use crate::types::data_type::DataTypeId;
 
-pub mod error;
-pub mod type_synthesis;
-pub mod name_resolution;
+mod error;
+mod type_synthesis;
+mod name_resolution;
 
-pub fn semantic_analysis(ast: &AST, ctx: &mut CompilerContext) -> CompilerResult<()> {
+#[derive(Debug)]
+pub struct AnnotatedAST {
+    ast: AST,
+    ast_node_data_types: Vec<DataTypeId>,
+}
+
+impl AnnotatedAST {
+    pub fn new(ast: AST, ast_node_data_types: Vec<DataTypeId>) -> Self {
+        Self { 
+            ast, 
+            ast_node_data_types 
+        }
+    }
+}
+
+pub fn semantic_analysis(ast: AST, ctx: &mut CompilerContext) -> CompilerResult<AnnotatedAST> {
     NameResolver::resolve(&ast, ctx)?;
 
     println!("{:?}", ctx.symbol_table);
 
-    TypeSynthesizer::synthesize(ast, ctx)?;
+    let ast_node_data_types = TypeSynthesizer::synthesize(&ast, ctx)?;
 
     println!("{:?}", ctx.type_arena);
 
-    Ok(())
+    Ok(AnnotatedAST::new(ast, ast_node_data_types))
 }

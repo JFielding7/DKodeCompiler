@@ -8,19 +8,7 @@ use crate::source::source_span::SourceSpan;
 use crate::error::compiler_error::CompilerResult;
 use logos::Logos;
 
-type LineTokens = Vec<Token>;
-
-#[derive(Debug)]
-pub struct TokenizedLines(Vec<LineTokens>);
-
-impl IntoIterator for TokenizedLines {
-    type Item = LineTokens;
-    type IntoIter = std::vec::IntoIter<LineTokens>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
+pub type LineTokens = Vec<Token>;
 
 fn get_indent_token(
     line_index: usize,
@@ -44,7 +32,7 @@ fn get_indent_token(
     }
 }
 
-fn tokenize_line(
+pub fn tokenize_line(
     line_index: usize,
     content: &str,
     ctx: &mut CompilerContext
@@ -71,16 +59,4 @@ fn tokenize_line(
     }
 
     Ok(tokens)
-}
-
-pub fn lex_source_file(
-    source_file: &SourceFile,
-    ctx: &mut CompilerContext
-) -> CompilerResult<TokenizedLines> {
-    let lines = source_file.into_iter()
-        .enumerate()
-        .map(|(i, content)| tokenize_line(i, content, ctx))
-        .collect::<CompilerResult<Vec<LineTokens>>>()?;
-
-    Ok(TokenizedLines(lines))
 }

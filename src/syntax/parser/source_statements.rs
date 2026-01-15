@@ -1,7 +1,7 @@
-use crate::lexer::tokenizer::TokenizedLines;
 use crate::syntax::parser::statement::Statement;
 use std::iter::Peekable;
 use std::vec::IntoIter;
+use crate::lexer::TokenizedLines;
 
 pub struct SourceStatements {
     statements: Vec<Statement>
