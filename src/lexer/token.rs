@@ -17,6 +17,8 @@ pub struct Token {
 pub enum TokenType {
     #[token("fn")]
     Fn,
+    #[token("return")]
+    Return,
 
     #[token("if")]
     If,

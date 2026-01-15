@@ -1,9 +1,9 @@
-use crate::ast::arena_ast::AST;
 use crate::compiler_context::CompilerContext;
 use crate::error::Error;
 use crate::semantic::semantic_analysis;
 use crate::source::source_file::SourceFile;
 use error::Result;
+use crate::ast::AST;
 use crate::error::compiler_error::CompilerResult;
 use crate::lexer::lexical_analysis;
 use crate::syntax::syntax_analysis;

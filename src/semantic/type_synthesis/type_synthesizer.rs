@@ -1,8 +1,9 @@
-use crate::ast::arena_ast::AST;
 use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
-use crate::ast::ast_node::{ASTNode, ASTNodeId, ASTNodeType};
+use crate::ast::ast_node::{ASTNodeId, ASTNodeType};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
+use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::function_def_node::FunctionDefNode;
+use crate::ast::AST;
 use crate::compiler_context::scope::ScopeId;
 use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
@@ -16,7 +17,6 @@ use crate::source::source_span::SourceSpan;
 use crate::types::builtin_type::BuiltinType::{Int, String, Unit};
 use crate::types::data_type::{DataType, DataTypeId};
 use string_interner::DefaultSymbol;
-use crate::ast::function_call_node::FunctionCallNode;
 
 pub struct TypeSynthesizer<'a> {
     ast: &'a AST,
@@ -142,6 +142,7 @@ impl<'a> TypeSynthesizer<'a> {
         let mut param_types = Vec::new();
 
         for param in &func_def_node.params {
+            // TODO: generics
             let type_id = self.ctx.type_arena
                 .get_type_id(param.type_annotation.type_name, &self.ctx.string_interner)
                 .ok_or_else(|| UndefinedType.at(param.span))?;
@@ -161,6 +162,7 @@ impl<'a> TypeSynthesizer<'a> {
                     unimplemented!("Generic type annotations")
                 }
 
+                // TODO: generics
                 let return_type_symbol = ret.type_name;
                 self.ctx.type_arena
                     .get_type_id(return_type_symbol, &self.ctx.string_interner)
@@ -273,6 +275,44 @@ impl<'a> TypeSynthesizer<'a> {
         })
     }
 
+    fn compute_return_statement_type(&self, node_id: ASTNodeId) -> CompilerResult<DataTypeId> {
+        use DataType::*;
+
+        let node = self.ast.lookup(node_id);
+        let span = node.span;
+        let scope_id = node.scope_id;
+
+        let func_name = match self.ctx.symbol_table.scope_function_name(scope_id) {
+            Some(func_name) => func_name,
+            None => return Err(ReturnStatementOutsideFunction.at(span)),
+        };
+
+        let func_type = self.ctx.symbol_table
+            .lookup(func_name, scope_id)
+            .expect("Function must be defined")
+            .data_type
+            .expect("Function must have data type");
+
+        let expected_return_type = match self.ctx.type_arena.get_data_type(func_type) {
+            Fn { return_type, .. } => *return_type,
+            _ => unreachable!("Function must have function type")
+        };
+
+        let actual_return_type = match self.get_node_data_type(node_id) {
+            Some(return_type) => return_type,
+            None => return Err(TypeInference.at(span)),
+        };
+
+        if actual_return_type == expected_return_type {
+            Ok(actual_return_type)
+        } else {
+            Err(IncorrectReturnType {
+                expected: expected_return_type,
+                actual: actual_return_type
+            }.at(span))
+        }
+    }
+
     fn compute_type(&mut self, ast_node_id: ASTNodeId) -> CompilerResult<Option<DataTypeId>> {
         use ASTNodeType::*;
 
@@ -306,6 +346,10 @@ impl<'a> TypeSynthesizer<'a> {
                 unreachable!("function definition should already be synthesized")
             }
 
+            ReturnStatement(ast_node_id) => {
+                Some(self.compute_return_statement_type(*ast_node_id)?)
+            }
+
             FunctionCall(func_call_node) => {
                 Some(self.compute_function_call_type(func_call_node, node.span)?)
             }
@@ -317,6 +361,7 @@ impl<'a> TypeSynthesizer<'a> {
     }
 
     fn compute_ast_types(&mut self) -> CompilerResult<()> {
+        // bottom up, invariant that children have lower ASTNodeId than parent
         for node_id in self.ast.ast_node_id_iter() {
             let data_type_id = self.compute_type(node_id)?;
             self.assign_node_data_type(node_id, data_type_id);

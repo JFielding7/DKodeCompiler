@@ -1,4 +1,4 @@
-use crate::ast::arena_ast::AST;
+use crate::ast::AST;
 use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::semantic::name_resolution::NameResolver;

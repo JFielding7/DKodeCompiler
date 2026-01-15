@@ -15,11 +15,24 @@ impl SymbolTable {
             scopes: vec![Scope::global()],
         }
     }
-    
-    pub fn add_scope_with_parent(&mut self, parent_scope_id: ScopeId) -> ScopeId {
+
+    fn add_scope(&mut self, scope: Scope) -> ScopeId {
         let id = self.scopes.len();
-        self.scopes.push(Scope::with_parent(parent_scope_id));
+        self.scopes.push(scope);
         ScopeId::new(id)
+    }
+
+    pub fn add_function_scope(&mut self, function: DefaultSymbol, parent_scope_id: ScopeId) -> ScopeId {
+        let scope = Scope::new(parent_scope_id, Some(function));
+
+        self.add_scope(scope)
+    }
+    
+    pub fn add_block_scope(&mut self, parent_scope_id: ScopeId) -> ScopeId {
+        let parent = &self.scopes[parent_scope_id.as_usize()];
+        let scope = Scope::new(parent_scope_id, parent.function);
+
+        self.add_scope(scope)
     }
 
     pub fn lookup(&self, name: DefaultSymbol, scope_id: ScopeId) -> Option<&Symbol> {
@@ -52,6 +65,10 @@ impl SymbolTable {
         }
 
         false
+    }
+    
+    pub fn scope_function_name(&self, scope_id: ScopeId) -> Option<DefaultSymbol> {
+        self.scopes[scope_id.as_usize()].function
     }
 
     pub fn insert(&mut self, name: DefaultSymbol, def_span: SourceSpan, scope_id: ScopeId) -> bool {

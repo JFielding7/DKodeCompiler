@@ -43,6 +43,8 @@ pub enum ASTNodeType {
     BinaryOperator(BinaryOperatorNode),
 
     FunctionDef(FunctionDefNode),
+    
+    ReturnStatement(ASTNodeId),
 
     FunctionCall(FunctionCallNode),
 

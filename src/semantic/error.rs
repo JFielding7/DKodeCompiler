@@ -30,6 +30,13 @@ pub enum SemanticError {
         actual: usize,
     },
 
+    ReturnStatementOutsideFunction,
+
+    IncorrectReturnType {
+        expected: DataTypeId,
+        actual: DataTypeId,
+    },
+
     UndefinedType,
 
     TypeInference,
@@ -37,39 +44,40 @@ pub enum SemanticError {
 
 impl SpannableError for SemanticError {
     fn format(&self, ctx: &CompilerContext) -> String {
+        let string_interner = &ctx.string_interner;
+        let type_arena = &ctx.type_arena;
+
         match self {
             MismatchedUnaryOperatorTypes(op, id) => {
                 format!("Error: Operator {op} not defined on {}",
-                        ctx.type_arena.format_type(*id, &ctx.string_interner)
+                        type_arena.format_type(*id, string_interner)
                 )
             }
             MismatchedBinaryOperatorTypes(op, left, right) => {
                 format!("Error: Operator {op} not defined for {} and {}", 
-                        ctx.type_arena.format_type(*left, &ctx.string_interner), 
-                        ctx.type_arena.format_type(*right, &ctx.string_interner)
+                        type_arena.format_type(*left, string_interner),
+                        type_arena.format_type(*right, string_interner)
                 )
             }
             MismatchedTypes { expected, actual } => {
-                let string_interner = &ctx.string_interner;
-                let type_arena = &ctx.type_arena;
                 format!("Error: Mismatched types: Expected {}, but got {}",
                         type_arena.format_type(*expected, string_interner),
                         type_arena.format_type(*actual, string_interner)
                 )
             }
             UndefinedVariable(var_name) => {
-                format!("Error: Undefined variable: {}", 
-                        ctx.string_interner.get_str(*var_name)
+                format!("Error: Undefined variable: {}",
+                        string_interner.get_str(*var_name)
                 )
             }
             DuplicateParameterName(param_name) => {
                 format!("Error: Duplicate parameter definition: {}", 
-                        ctx.string_interner.get_str(*param_name)
+                        string_interner.get_str(*param_name)
                 )
             }
             DuplicateFunctionName(func_name) => {
                 format!("Error: Duplicate function definition: {}", 
-                        ctx.string_interner.get_str(*func_name)
+                        string_interner.get_str(*func_name)
                 )
             }
             FunctionExpected => {
@@ -78,8 +86,21 @@ impl SpannableError for SemanticError {
             IncorrectArgumentCount { expected, actual } => {
                 format!("Error: Expected {expected} arguments, but got {actual}")
             }
-            UndefinedType => "Error: Undefined type".to_string(),
-            TypeInference => "Error: Cannot infer type".to_string(),
+            ReturnStatementOutsideFunction => {
+                "Error: Return statements outside function".to_string()
+            }
+            IncorrectReturnType { expected, actual } => {
+                format!("Error: Incorrect Return type: Expected {}, but got {}",
+                        type_arena.format_type(*expected, string_interner),
+                        type_arena.format_type(*actual, string_interner)
+                )
+            }
+            UndefinedType => {
+                "Error: Undefined type".to_string()
+            },
+            TypeInference => {
+                "Error: Cannot infer type".to_string()
+            },
         }
     }
 }

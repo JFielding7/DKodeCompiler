@@ -1,5 +1,5 @@
 use crate::ast::access_node::{AccessNode, Member};
-use crate::ast::arena_ast::AST;
+use crate::ast::AST;
 use crate::ast::ast_node::{ASTNode, ASTNodeType, ASTNodeLocation, ASTNodeId};
 use crate::ast::binary_operator_node::{BinaryOperatorNode};
 use crate::ast::function_call_node::FunctionCallNode;

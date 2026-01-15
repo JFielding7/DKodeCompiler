@@ -7,6 +7,7 @@ use crate::compiler_context::symbol::Symbol;
 pub struct Scope {
     symbols: HashMap<DefaultSymbol, Symbol>,
     pub parent: Option<ScopeId>,
+    pub function: Option<DefaultSymbol>,
 }
 
 impl Scope {
@@ -14,13 +15,15 @@ impl Scope {
         Self {
             parent: None,
             symbols: HashMap::new(),
+            function: None,
         }
     }
 
-    pub fn with_parent(parent: ScopeId) -> Self {
+    pub fn new(parent: ScopeId, function: Option<DefaultSymbol>) -> Self {
         Self {
             parent: Some(parent),
-            symbols: HashMap::new()
+            symbols: HashMap::new(),
+            function,
         }
     }
 

@@ -1,5 +1,5 @@
 use crate::ast::access_node::AccessNode;
-use crate::ast::arena_ast::AST;
+use crate::ast::AST;
 use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
 use crate::ast::ast_node::{ASTNode, ASTNodeId, ASTNodeType};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
@@ -108,6 +108,7 @@ impl<'a> NameResolver<'a> {
             If(if_node) => self.resolve_if(if_node)?,
             While(while_node) => self.resolve_while(while_node)?,
             For(for_node) => self.resolve_for(for_node)?,
+            ReturnStatement(root_id) => self.resolve_statement_names(*root_id)?,
 
             FunctionDef(_) => {}
             IntLiteral(_) => {}
