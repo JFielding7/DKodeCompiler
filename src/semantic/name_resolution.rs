@@ -1,8 +1,10 @@
 use crate::ast::access_node::AccessNode;
 use crate::ast::AST;
-use crate::ast::ast_node::ASTNodeType::{FunctionDef, Variable};
-use crate::ast::ast_node::{ASTNode, ASTNodeId, ASTNodeType};
+use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, StatementId};
+use crate::ast::ast_node::Expression::Variable;
+use crate::ast::ast_node::Item::FunctionDef;
 use crate::ast::binary_operator_node::BinaryOperatorNode;
+use crate::ast::block::{Block, BlockId};
 use crate::ast::for_node::ForNode;
 use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::function_def_node::FunctionDefNode;
@@ -11,14 +13,18 @@ use crate::ast::index_node::IndexNode;
 use crate::ast::variable_node::VariableNode;
 use crate::ast::while_node::WhileNode;
 use crate::compiler_context::CompilerContext;
+use crate::compiler_context::scope::ScopeId;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
 use crate::semantic::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, UndefinedVariable};
+use crate::source::source_span::SourceSpan;
 
 pub struct NameResolver<'a> {
     ast: &'a AST,
     ctx: &'a mut CompilerContext,
+    curr_scope_id: ScopeId,
+    block_scope_ids: Vec<ScopeId>,
 }
 
 impl<'a> NameResolver<'a> {
@@ -26,48 +32,50 @@ impl<'a> NameResolver<'a> {
         Self {
             ast,
             ctx,
+            curr_scope_id: ScopeId::global(),
+            block_scope_ids: vec![ScopeId::new(0); ast.block_count()]
         }
     }
 
-    fn resolve_variable(&mut self, var: &VariableNode, wrapper_node: &ASTNode) -> CompilerResult<()> {
-        if self.ctx.symbol_table.contains(var.name, wrapper_node.scope_id) {
+    fn resolve_variable(&mut self, var: &VariableNode, span: SourceSpan) -> CompilerResult<()> {
+        if self.ctx.symbol_table.contains(var.name, self.curr_scope_id) {
             Ok(())
         } else {
-            Err(UndefinedVariable(var.name).at(wrapper_node.span))
+            Err(UndefinedVariable(var.name).at(span))
         }
     }
 
-    fn handle_binary_operator(&mut self, op: &BinaryOperatorNode) -> CompilerResult<()> {
+    fn resolve_binary_operator(&mut self, op: &BinaryOperatorNode) -> CompilerResult<()> {
         if op.op_type.precedence_group() == Assign {
-            self.resolve_statement_names(op.right)?;
+            self.resolve_expression(op.right)?;
 
-            let left_node = self.ast.lookup(op.left);
+            let left_node = self.ast.lookup_expression(op.left);
             if let Variable(var) = &left_node.node_type {
-                self.ctx.symbol_table.insert(var.name, left_node.span, left_node.scope_id);
+                self.ctx.symbol_table.insert(var.name, left_node.span, self.curr_scope_id);
             } else {
-                self.resolve_statement_names(op.left)?;
+                self.resolve_expression(op.left)?;
             }
         } else {
-            self.resolve_statement_names(op.left)?;
-            self.resolve_statement_names(op.right)?;
+            self.resolve_expression(op.left)?;
+            self.resolve_expression(op.right)?;
         }
 
         Ok(())
     }
 
     fn resolve_function_call(&mut self, call: &FunctionCallNode) -> CompilerResult<()> {
-        self.resolve_statement_names(call.function)?;
+        self.resolve_expression(call.function)?;
 
         if let Some(args) = call.args {
-            self.resolve_statement_names(args)?;
+            self.resolve_expression(args)?;
         }
 
         Ok(())
     }
 
     fn resolve_index(&mut self, index: &IndexNode) -> CompilerResult<()> {
-        self.resolve_statement_names(index.operand)?;
-        self.resolve_statement_names(index.arg)?;
+        self.resolve_expression(index.operand)?;
+        self.resolve_expression(index.arg)?;
 
         Ok(())
     }
@@ -79,86 +87,185 @@ impl<'a> NameResolver<'a> {
     }
 
     fn resolve_if(&mut self, if_node: &IfNode) -> CompilerResult<()> {
-        self.resolve_statement_names(if_node.if_condition())
+        let curr_scope_id = self.curr_scope_id;
+
+        for cond_block in &if_node.condition_blocks {
+            self.resolve_expression(cond_block.condition)?;
+
+            let body_scope = self.ctx.symbol_table.add_block_scope(curr_scope_id);
+            self.resolve_block(cond_block.body, body_scope)?;
+        }
+
+        if let Some(block_id) = if_node.else_body {
+            let else_body_scope = self.ctx.symbol_table.add_block_scope(curr_scope_id);
+            self.resolve_block(block_id, else_body_scope)?;
+        }
+
+        Ok(())
     }
 
     fn resolve_while(&mut self, while_node: &WhileNode) -> CompilerResult<()> {
-        self.resolve_statement_names(while_node.condition)
+        self.resolve_expression(while_node.condition)?;
+
+        let body_scope = self.ctx.symbol_table.add_block_scope(self.curr_scope_id);
+        self.resolve_block(while_node.body, body_scope)?;
+
+        Ok(())
     }
 
     fn resolve_for(&mut self, for_node: &ForNode) -> CompilerResult<()> {
-        let item_var = &for_node.item_variable;
-        self.ctx.symbol_table.insert(item_var.name, item_var.span, for_node.body.scope_id);
+        self.resolve_expression(for_node.iterator)?;
 
-        self.resolve_statement_names(for_node.iterator)
+        let item_var = &for_node.item_variable;
+
+        let body_scope = self.ctx.symbol_table.add_block_scope(self.curr_scope_id);
+        self.ctx.symbol_table.insert(item_var.name, item_var.span, body_scope);
+
+        self.resolve_block(for_node.body, body_scope)?;
+
+        Ok(())
     }
 
-    fn resolve_statement_names(&mut self, statement_root_id: ASTNodeId) -> CompilerResult<()> {
-        use ASTNodeType::*;
+    fn resolve_expression(&mut self, expr_id: ExpressionId) -> CompilerResult<()> {
+        use Expression::*;
 
-        let node = self.ast.lookup(statement_root_id);
+        let expr_node = self.ast.lookup_expression(expr_id);
 
-        match &node.node_type {
-            Variable(var_node) => self.resolve_variable(var_node, node)?,
-            BinaryOperator(op) => self.handle_binary_operator(op)?,
-            UnaryOperator(op) => self.resolve_statement_names(op.operand)?,
-            FunctionCall(call) => self.resolve_function_call(call)?,
-            Index(index) => self.resolve_index(index)?,
-            Access(access) => self.resolve_access(access)?,
-            If(if_node) => self.resolve_if(if_node)?,
-            While(while_node) => self.resolve_while(while_node)?,
-            For(for_node) => self.resolve_for(for_node)?,
-            ReturnStatement(root_id) => self.resolve_statement_names(*root_id)?,
-
-            FunctionDef(_) => {}
+        Ok(match &expr_node.node_type {
             IntLiteral(_) => {}
             StringLiteral(_) => {}
+            Variable(var_node) => {
+                self.resolve_variable(var_node, expr_node.span)?;
+            }
+            UnaryOperator(op) => {
+                self.resolve_expression(op.operand_id)?;
+            }
+            BinaryOperator(op) => {
+                self.resolve_binary_operator(op)?;
+            }
+            FunctionCall(call_node) => {
+                self.resolve_function_call(call_node)?;
+            }
+            Index(index_node) => {
+                self.resolve_index(index_node)?;
+            }
+            Access(_) => {}
+        })
+    }
+
+    fn resolve_curr_statement(&mut self, statement_root_id: StatementId) -> CompilerResult<()> {
+        use Statement::*;
+
+        let node = self.ast.lookup_statement(statement_root_id);
+
+        match &node.node_type {
+            ExpressionStatement(expr_id) => {
+                self.resolve_expression(*expr_id)?;
+            }
+            ReturnStatement(expr_id) => {
+                self.resolve_expression(*expr_id)?;
+            }
+            If(if_node) => {
+                self.resolve_if(if_node)?;
+            }
+            While(while_node) => {
+                self.resolve_while(while_node)?;
+            }
+            For(for_node) => {
+                self.resolve_for(for_node)?;
+            }
         };
 
         Ok(())
     }
 
-    fn resolve_statements(&mut self) -> CompilerResult<()> {
-        for statement_root_node_id in self.ast.statement_root_node_id_iter() {
-            self.resolve_statement_names(*statement_root_node_id)?;
+    fn resolve_statements(&mut self, statements: &Vec<StatementId>) -> CompilerResult<()> {
+        for &statement_root_node_id in statements {
+            self.resolve_curr_statement(statement_root_node_id)?;
         }
 
         Ok(())
     }
 
-    fn resolve_function_def(&mut self, func_def_node: &FunctionDefNode, wrapper_node: &ASTNode) -> CompilerResult<()> {
-        if !self.ctx.symbol_table.insert(func_def_node.name, wrapper_node.span, wrapper_node.scope_id) {
-            return Err(DuplicateFunctionName(func_def_node.name).at(wrapper_node.span))
+    fn resolve_item_blocks(&mut self, items: &Vec<ItemId>) -> CompilerResult<()> {
+
+        for &item_id in items {
+            let item = self.ast.lookup_item(item_id);
+
+            match &item.node_type {
+                FunctionDef(func_def_node) => {
+                    let scope_id = self.block_scope_ids[func_def_node.body.as_usize()];
+                    self.resolve_block(func_def_node.body, scope_id)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn resolve_function_signature(&mut self, func_def_node: &FunctionDefNode, span: SourceSpan) -> CompilerResult<()> {
+        let curr_scope_id = self.curr_scope_id;
+        let func_body_scope = self.ctx.symbol_table.add_function_scope(
+            func_def_node.name, curr_scope_id
+        );
+
+        if !self.ctx.symbol_table.insert(func_def_node.name, span, curr_scope_id) {
+            return Err(DuplicateFunctionName(func_def_node.name).at(span))
         }
 
         for param in &func_def_node.params {
             if !self.ctx.symbol_table.insert(
-                param.name, param.span, func_def_node.body.scope_id
+                param.name, param.span, func_body_scope
             ) {
                 return Err(DuplicateParameterName(param.name).at(param.span));
             }
         }
 
+        self.block_scope_ids[func_def_node.body.as_usize()] = func_body_scope;
+
+        // TODO
+        // self.resolve_block(func_def_node.body, func_body_scope)?;
+
         Ok(())
     }
 
-    fn resolve_functions(&mut self) -> CompilerResult<()> {
-        for node_id in self.ast.ast_node_id_iter() {
-            let node = self.ast.lookup(node_id);
+    fn resolve_items(&mut self, items: &Vec<ItemId>) -> CompilerResult<()> {
+        for &item_id in items {
+            let item = self.ast.lookup_item(item_id);
 
-            if let FunctionDef(func_def_node) = &node.node_type {
-                self.resolve_function_def(func_def_node, node)?;
+            match &item.node_type {
+                FunctionDef(func_def_node) => {
+                    self.resolve_function_signature(func_def_node, item.span)?;
+                }
             }
         }
 
         Ok(())
     }
 
-    pub fn resolve(ast: &'a AST, ctx: &'a mut CompilerContext) -> CompilerResult<()> {
-        let mut resolver = NameResolver::new(ast, ctx);
-        resolver.resolve_functions()?;
-        resolver.resolve_statements()?;
+    fn resolve_block(&mut self, block_id: BlockId, scope_id: ScopeId) -> CompilerResult<()> {
+        let parent_scope_id = self.curr_scope_id;
+        self.curr_scope_id = scope_id;
+
+        let block = self.ast.lookup_block(block_id);
+
+        self.resolve_items(&block.items)?;
+        self.resolve_item_blocks(&block.items)?;
+        self.resolve_statements(&block.statements)?;
+
+        self.block_scope_ids[block_id.as_usize()] = scope_id;
+
+        self.curr_scope_id = parent_scope_id;
 
         Ok(())
+    }
+
+    pub fn resolve(ast: &'a AST, ctx: &'a mut CompilerContext) -> CompilerResult<Vec<ScopeId>> {
+        let global_scope_id = ScopeId::global();
+
+        let mut resolver = NameResolver::new(ast, ctx);
+        resolver.resolve_block(ast.global_block_id, global_scope_id)?;
+
+        Ok(resolver.block_scope_ids)
     }
 }

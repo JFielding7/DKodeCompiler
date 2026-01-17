@@ -50,7 +50,7 @@ pub fn tokenize_line(
                 ctx.string_interner.get_intern_symbol(slice)
             ).at(source_span)
         )?;
-
+        
         tokens.push(Token::new(
             token_type,
             ctx.string_interner.get_intern_symbol(slice),

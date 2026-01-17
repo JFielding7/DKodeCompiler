@@ -1,17 +1,17 @@
 use string_interner::DefaultSymbol;
-use crate::ast::ast_node::ASTNodeId;
-use crate::ast::block_body::Block;
+use crate::ast::ast_node::ExpressionId;
+use crate::ast::block::BlockId;
 use crate::source::source_span::SourceSpan;
 
 #[derive(Debug)]
 pub struct ForNode {
     pub item_variable: ForVariable,
-    pub iterator: ASTNodeId,
-    pub body: Block,
+    pub iterator: ExpressionId,
+    pub body: BlockId,
 }
 
 impl ForNode {
-    pub fn new(item_variable: ForVariable, iterator: ASTNodeId, body: Block) -> Self {
+    pub fn new(item_variable: ForVariable, iterator: ExpressionId, body: BlockId) -> Self {
         Self {
             item_variable,
             iterator,
@@ -33,8 +33,4 @@ impl ForVariable {
             span 
         }
     }
-}
-
-pub struct ForBody {
-    
 }

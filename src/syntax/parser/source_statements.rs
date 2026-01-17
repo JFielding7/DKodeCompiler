@@ -1,10 +1,22 @@
 use crate::syntax::parser::statement::Statement;
-use std::iter::Peekable;
+use std::iter::{Enumerate, Peekable};
 use std::vec::IntoIter;
 use crate::lexer::TokenizedLines;
 
 pub struct SourceStatements {
     statements: Vec<Statement>
+}
+
+impl SourceStatements {
+    pub fn new(statements: Vec<Statement>) -> Self {
+        Self {
+            statements
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        self.statements.len()
+    }
 }
 
 impl From<TokenizedLines> for SourceStatements {
@@ -41,15 +53,17 @@ impl From<TokenizedLines> for SourceStatements {
             statements.push(Statement::new(curr_statement_tokens));
         }
 
-        Self { statements }
+        Self::new(statements)
     }
 }
 
 impl IntoIterator for SourceStatements {
     type Item = Statement;
-    type IntoIter = Peekable<IntoIter<Statement>>;
+    type IntoIter = SourceStatementsIter;
     
     fn into_iter(self) -> Self::IntoIter {
         self.statements.into_iter().peekable()
     }
 }
+
+pub type SourceStatementsIter = Peekable<IntoIter<Statement>>;

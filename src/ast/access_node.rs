@@ -1,15 +1,15 @@
 use string_interner::DefaultSymbol;
 use crate::ast::access_node::Member::Field;
-use crate::ast::ast_node::ASTNodeId;
+use crate::ast::ast_node::ExpressionId;
 
 #[derive(Debug)]
 pub struct AccessNode {
-    pub receiver: ASTNodeId,
+    pub receiver: ExpressionId,
     pub member: Member,
 }
 
 impl AccessNode {
-    pub fn new(receiver: ASTNodeId, member: Member) -> Self {
+    pub fn new(receiver: ExpressionId, member: Member) -> Self {
         Self {
             receiver,
             member,
@@ -24,7 +24,7 @@ pub enum Member {
     },
     Method {
         name: DefaultSymbol,
-        args: Option<ASTNodeId>,
+        args: Option<ExpressionId>,
     },
 }
 
@@ -42,7 +42,7 @@ impl Member {
         }
     }
 
-    pub fn method_with_args(name: DefaultSymbol, args: ASTNodeId) -> Self {
+    pub fn method_with_args(name: DefaultSymbol, args: ExpressionId) -> Self {
         Self::Method {
             name,
             args: Some(args),

@@ -15,6 +15,8 @@ pub enum SyntaxError {
 
     UnexpectedExpression,
 
+    ExpressionExpected,
+
     InvalidExpression,
 }
 
@@ -33,10 +35,11 @@ impl SpannableError for SyntaxError {
                 }
             }
             UnmatchedGroupOpening(opening) => {
-                format!("Error: Unmatched {}", opening)
+                format!("Error: Unmatched {opening}")
             },
             IndentTooLarge => "Error: Line indented too far in".to_string(),
             UnexpectedExpression => "Error: Unexpected Expression".to_string(),
+            ExpressionExpected => "Error: Expression expected".to_string(),
             InvalidExpression => "Error: Invalid Expression".to_string(),
 
         }

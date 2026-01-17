@@ -1,7 +1,6 @@
 use crate::lexer::token::TokenType::Indent;
 use crate::lexer::token::{Token, TokenType};
 use crate::source::source_span::SourceSpan;
-use crate::syntax::parser::token_stream::TokenStream;
 use std::ops::Deref;
 use std::vec::IntoIter;
 
@@ -55,10 +54,6 @@ impl Statement {
     pub fn full_span(&self) -> SourceSpan {
         let start_span = &self.token_after_indent().span;
         SourceSpan::new(start_span.line_index, start_span.start, self.last_token().span.end)
-    }
-
-    pub fn suffix_stream(&self, start: usize) -> TokenStream<'_> {
-        TokenStream::new(&self[start..])
     }
 }
 

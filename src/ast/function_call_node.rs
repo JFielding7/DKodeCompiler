@@ -1,13 +1,13 @@
-use crate::ast::ast_node::ASTNodeId;
+use crate::ast::ast_node::ExpressionId;
 
 #[derive(Debug)]
 pub struct FunctionCallNode {
-    pub function: ASTNodeId,
-    pub args: Option<ASTNodeId>,
+    pub function: ExpressionId,
+    pub args: Option<ExpressionId>,
 }
 
 impl FunctionCallNode {
-    pub fn new(function: ASTNodeId, args: Option<ASTNodeId>) -> Self {
+    pub fn new(function: ExpressionId, args: Option<ExpressionId>) -> Self {
         Self {
             function,
             args,

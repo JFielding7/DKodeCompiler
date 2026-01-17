@@ -1,20 +1,20 @@
-use crate::ast::ast_node::ASTNodeId;
+use crate::ast::ast_node::ExpressionId;
 use crate::operators::unary_operators::UnaryOperator;
 
 #[derive(Debug)]
 pub struct UnaryOperatorNode {
     pub op_type: UnaryOperator,
-    pub operand: ASTNodeId,
+    pub operand_id: ExpressionId,
 }
 
 impl UnaryOperatorNode {
     pub fn new(
         op_type: UnaryOperator,
-        operand: ASTNodeId,
+        operand_id: ExpressionId,
     ) -> Self {
         Self {
             op_type,
-            operand
+            operand_id,
         }
     }
 }

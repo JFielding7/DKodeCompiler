@@ -76,7 +76,7 @@ impl SymbolTable {
         self.scopes[scope_id.as_usize()].insert(symbol)
     }
     
-    pub fn assign_type(&mut self, data_type_id: DataTypeId, name: DefaultSymbol, scope_id: ScopeId) -> bool {
+    pub fn assign_type(&mut self, data_type_id: DataTypeId, name: DefaultSymbol, scope_id: ScopeId) {
         let mut curr_scope = Some(scope_id);
 
         while let Some(id) = curr_scope {
@@ -84,13 +84,13 @@ impl SymbolTable {
 
             if let Some(symbol) = scope.lookup_mut(name) {
                 symbol.data_type = Some(data_type_id);
-                return true;
+                return;
             }
 
             curr_scope = scope.parent;
         }
 
-        false
+        unreachable!("Symbol {:?} not found in scope", name);
     }
 }
 

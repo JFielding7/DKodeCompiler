@@ -1,7 +1,5 @@
 use string_interner::DefaultSymbol;
-use crate::ast::ast_node::ASTNodeId;
-use crate::ast::block_body::Block;
-use crate::compiler_context::scope::ScopeId;
+use crate::ast::block::BlockId;
 use crate::source::source_span::SourceSpan;
 use crate::types::type_annotation::TypeAnnotation;
 
@@ -9,7 +7,7 @@ use crate::types::type_annotation::TypeAnnotation;
 pub struct FunctionDefNode {
     pub name: DefaultSymbol,
     pub params: Vec<Parameter>,
-    pub body: Block,
+    pub body: BlockId,
     pub return_type: Option<TypeAnnotation>,
 }
 
@@ -17,7 +15,7 @@ impl FunctionDefNode {
     pub fn new(
         name: DefaultSymbol,
         params: Vec<Parameter>,
-        body: Block,
+        body: BlockId,
         return_type: Option<TypeAnnotation>,
     ) -> Self {
         Self {

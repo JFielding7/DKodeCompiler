@@ -22,7 +22,7 @@ fn compile_source_file(source_file: &SourceFile, compiler_context: &mut Compiler
 
     let source_lines = lexical_analysis(source_file, compiler_context)?;
 
-    let ast: AST = syntax_analysis(source_lines, compiler_context)?;
+    let ast: AST = syntax_analysis(source_lines)?;
     
     let annotated_ast = semantic_analysis(ast, compiler_context)?;
 
@@ -54,7 +54,7 @@ fn compile_program(args: Vec<String>, compiler_context: &mut CompilerContext) ->
 fn main()  {
     let args = std::env::args().collect::<Vec<_>>();
     let mut compiler_context = CompilerContext::new();
-
+    
     if let Err(err) = compile_program(args, &mut compiler_context) {
         println!("{}", err.format(&compiler_context));
     }

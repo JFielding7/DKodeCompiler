@@ -15,10 +15,10 @@ pub struct TokenStream<'a> {
 }
 
 impl<'a> TokenStream<'a> {
-    pub fn new(tokens: &'a [Token]) -> Self {
+    pub fn new(tokens: &'a [Token], start: usize) -> Self {
         Self {
-            iter: tokens.iter().peekable(),
-            prev_token: &tokens[0],
+            iter: tokens[start..].iter().peekable(),
+            prev_token: &tokens[start - 1],
             curr_token_split: false
         }
     }

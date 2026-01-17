@@ -25,9 +25,11 @@ impl AnnotatedAST {
 }
 
 pub fn semantic_analysis(ast: AST, ctx: &mut CompilerContext) -> CompilerResult<AnnotatedAST> {
-    NameResolver::resolve(&ast, ctx)?;
+    let block_scope_ids = NameResolver::resolve(&ast, ctx)?;
 
-    let ast_node_data_types = TypeSynthesizer::synthesize(&ast, ctx)?;
+    let ast_node_data_types = TypeSynthesizer::synthesize(
+        &ast, ctx, block_scope_ids
+    )?;
 
     println!("{:?}", ctx.symbol_table);
 
