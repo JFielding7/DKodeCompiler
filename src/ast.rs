@@ -18,7 +18,7 @@ pub mod block;
 #[derive(Debug)]
 pub struct AST {
     pub item_arena: Vec<ASTNode<Item>>,
-    pub(crate) block_arena: Vec<Block>,
+    block_arena: Vec<Block>,
     statement_arena: Vec<ASTNode<Statement>>,
     expr_arena: Vec<ASTNode<Expression>>,
     pub global_block_id: BlockId,
@@ -89,3 +89,5 @@ impl AST {
         self.expr_arena.len()
     }
 }
+
+

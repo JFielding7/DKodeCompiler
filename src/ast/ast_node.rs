@@ -39,7 +39,7 @@ pub enum Item {
 pub enum Statement {
     ExpressionStatement(ExpressionId),
 
-    ReturnStatement(ExpressionId),
+    ReturnStatement(Option<ExpressionId>),
 
     If(IfNode),
 

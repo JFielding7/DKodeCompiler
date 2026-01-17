@@ -138,13 +138,19 @@ impl ASTParser {
     
     fn parse_return_statement(&mut self, return_statement: Statement) -> CompilerResult<StatementId> {
         const TOKENS_BEFORE_EXPRESSION: usize = 2;
+        
+        let ret_statement = if return_statement.len() > 2 {
+            let ret_value = ExpressionParser::parse(
+                TokenStream::new(&return_statement, TOKENS_BEFORE_EXPRESSION),
+                &mut self.ast,
+            )?;
 
-        let ret_value = ExpressionParser::parse(
-            TokenStream::new(&return_statement, TOKENS_BEFORE_EXPRESSION),
-            &mut self.ast,
-        )?;
+            ReturnStatement(Some(ret_value))
+        } else {
+            ReturnStatement(None)
+        };
 
-        Ok(self.ast.add_statement(ReturnStatement(ret_value), return_statement.full_span()))
+        Ok(self.ast.add_statement(ret_statement, return_statement.full_span()))
     }
     
     fn parse_expression(&mut self, expr_statement: Statement) -> CompilerResult<StatementId> {
@@ -199,7 +205,6 @@ impl ASTParser {
         const GLOBAL_INDENT_SIZE: usize = 0;
 
         self.ast.global_block_id = self.parse_block(GLOBAL_INDENT_SIZE)?;
-        println!("{:?}", self.ast.block_arena);
 
         Ok(())
     }

@@ -17,6 +17,7 @@ mod ast;
 mod compiler_context;
 mod types;
 mod operators;
+mod code_gen;
 
 fn compile_source_file(source_file: &SourceFile, compiler_context: &mut CompilerContext) -> CompilerResult<()> {
 

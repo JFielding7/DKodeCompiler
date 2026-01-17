@@ -26,15 +26,15 @@ use crate::compiler_context::scope::ScopeId;
 pub struct TypeSynthesizer<'a> {
     ast: &'a AST,
     ctx: &'a mut CompilerContext,
+    block_scope_ids: &'a Vec<ScopeId>,
     ast_node_data_types: Vec<Option<DataTypeId>>,
-    block_scope_ids: Vec<ScopeId>,
     unary_op_impl: OperatorRegistry<UnaryOperator>,
     binary_op_impl: OperatorRegistry<BinaryOperator>,
     curr_scope_id: ScopeId,
 }
 
 impl<'a> TypeSynthesizer<'a> {
-    fn new(ast: &'a AST, ctx: &'a mut CompilerContext, block_scope_ids: Vec<ScopeId>) -> Self {
+    fn new(ast: &'a AST, ctx: &'a mut CompilerContext, block_scope_ids: &'a Vec<ScopeId>) -> Self {
         let ast_node_data_type = vec![None; ast.expression_count()];
 
         Self {
@@ -47,13 +47,6 @@ impl<'a> TypeSynthesizer<'a> {
             curr_scope_id: ScopeId::global(),
         }
     }
-
-    // fn get_expr_data_type(
-    //     &self,
-    //     expr_id: ExpressionId
-    // ) -> Option<DataTypeId> {
-    //     self.ast_node_data_types[expr_id.as_usize()]
-    // }
 
     fn assign_expr_data_type(
         &mut self,
@@ -252,9 +245,14 @@ impl<'a> TypeSynthesizer<'a> {
 
     fn compute_return_statement_type(
         &mut self,
-        expr_id: ExpressionId
+        expr_id_opt: Option<ExpressionId>
     ) -> CompilerResult<DataTypeId> {
         use DataType::*;
+
+        let expr_id = match expr_id_opt {
+            Some(expr_id) => expr_id,
+            None => return Ok(self.ctx.type_arena.builtin_type_id(Unit))
+        };
 
         let node = self.ast.lookup_expression(expr_id);
         let span = node.span;
@@ -400,8 +398,6 @@ impl<'a> TypeSynthesizer<'a> {
         &mut self,
         statements: &Vec<StatementId>
     ) -> CompilerResult<()> {
-        println!("Statement types {:?}", statements);
-
         for &node_id in statements {
             self.compute_curr_statement_type(node_id)?;
         }
@@ -509,7 +505,7 @@ impl<'a> TypeSynthesizer<'a> {
         Ok(())
     }
 
-    pub fn synthesize(ast: &AST, ctx: &mut CompilerContext, block_scope_ids: Vec<ScopeId>) -> CompilerResult<Vec<DataTypeId>> {
+    pub fn synthesize(ast: &AST, ctx: &mut CompilerContext, block_scope_ids: &Vec<ScopeId>) -> CompilerResult<Vec<DataTypeId>> {
         let mut synthesizer = TypeSynthesizer::new(&ast, ctx, block_scope_ids);
         synthesizer.compute_block_types(ast.global_block_id)?;
 

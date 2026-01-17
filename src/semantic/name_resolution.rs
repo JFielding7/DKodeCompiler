@@ -152,6 +152,14 @@ impl<'a> NameResolver<'a> {
             Access(_) => {}
         })
     }
+    
+    fn resolve_return_statement(&mut self, expr_id_opt: Option<ExpressionId>) -> CompilerResult<()> {
+        if let Some(expr_id) = expr_id_opt {
+            self.resolve_expression(expr_id)?;
+        }
+        
+        Ok(())
+    }
 
     fn resolve_curr_statement(&mut self, statement_root_id: StatementId) -> CompilerResult<()> {
         use Statement::*;
@@ -163,7 +171,7 @@ impl<'a> NameResolver<'a> {
                 self.resolve_expression(*expr_id)?;
             }
             ReturnStatement(expr_id) => {
-                self.resolve_expression(*expr_id)?;
+                self.resolve_return_statement(*expr_id)?;
             }
             If(if_node) => {
                 self.resolve_if(if_node)?;

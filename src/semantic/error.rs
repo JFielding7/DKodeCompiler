@@ -87,7 +87,7 @@ impl SpannableError for SemanticError {
                 format!("Error: Expected {expected} arguments, but got {actual}")
             }
             ReturnStatementOutsideFunction => {
-                "Error: Return statements outside function".to_string()
+                "Error: Return statement outside function".to_string()
             }
             IncorrectReturnType { expected, actual } => {
                 format!("Error: Incorrect Return type: Expected {}, but got {}",
