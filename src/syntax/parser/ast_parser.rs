@@ -1,12 +1,11 @@
+use string_interner::DefaultSymbol;
 use crate::ast::ast_node::{ItemId, StatementId};
-use crate::ast::block::{Block, BlockId};
+use crate::ast::block::BlockId;
 use crate::ast::for_node::{ForNode, ForVariable};
 use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::{ConditionBlock, IfNode};
 use crate::ast::while_node::WhileNode;
 use crate::ast::AST;
-use crate::compiler_context::scope::ScopeId;
-use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::lexer::token::TokenType;
@@ -17,18 +16,26 @@ use crate::syntax::parser::function_signature::{parse_function_name, parse_param
 use crate::syntax::parser::source_statements::{SourceStatements, SourceStatementsIter};
 use crate::syntax::parser::statement::Statement;
 use crate::ast::ast_node::Statement::{ExpressionStatement, ReturnStatement};
+use crate::compiler_context::CompilerContext;
+use crate::compiler_context::scope::Scope;
 use crate::syntax::parser::token_stream::TokenStream;
 
-pub struct ASTParser {
+pub struct ASTParser<'compiler_ctx> {
     pub ast: AST,
     statements_iter: SourceStatementsIter,
+    curr_block_id: Option<BlockId>,
+    curr_function_name: Option<DefaultSymbol>,
+    ctx: &'compiler_ctx mut CompilerContext,
 }
 
-impl ASTParser {
-    pub fn new(statements: SourceStatements) -> Self {
+impl<'compiler_ctx> ASTParser<'compiler_ctx> {
+    pub fn new(statements: SourceStatements, ctx: &'compiler_ctx mut CompilerContext) -> Self {
         Self {
             statements_iter: statements.into_iter(),
             ast: AST::new(),
+            curr_block_id: None,
+            curr_function_name: None,
+            ctx,
         }
     }
 
@@ -43,7 +50,11 @@ impl ASTParser {
 
         let mut token_stream = TokenStream::new(&func_def_statement, TOKENS_BEFORE_NAME);
 
-        let func_name = parse_function_name(&mut token_stream)?;
+        let function_name = parse_function_name(&mut token_stream)?;
+        
+        let parent_function_name = self.curr_function_name;
+        self.curr_function_name = Some(function_name);
+        
         let params = parse_parameters(&mut token_stream)?;
         let return_type = parse_return_type(&mut token_stream)?;
 
@@ -52,8 +63,10 @@ impl ASTParser {
         let span = func_def_statement.full_span();
 
         let func_def_node = FunctionDefNode::new(
-            func_name, params, body, return_type
+            function_name, params, body, return_type
         ).into();
+        
+        self.curr_function_name = parent_function_name;
 
         Ok(self.ast.add_item(func_def_node, span))
     }
@@ -182,9 +195,14 @@ impl ASTParser {
 
     fn parse_block(&mut self, indent_size: usize) -> CompilerResult<BlockId> {
         use SourceStatementNode::*;
-        println!("Parsing block");
 
-        let mut block = Block::new();
+        let block_id = self.ast.create_block();
+        let block_scope = Scope::new(self.curr_block_id, self.curr_function_name);
+        
+        self.ctx.symbol_table.add_scope(block_scope);
+        
+        let parent_block_id = self.curr_block_id;
+        self.curr_block_id = Some(block_id);
 
         while let Some(child) =self.statements_iter.peek() {
             if child.indent_size < indent_size {
@@ -193,12 +211,18 @@ impl ASTParser {
 
             let child = self.statements_iter.next().expect("Statement Expected");
             match self.parse_next_statement_ast_node(child, indent_size)? {
-                Item(item_id) => block.add_item(item_id),
-                Statement(statement_id) => block.add_statement(statement_id),
+                Item(item_id) => {
+                    self.ast.lookup_block_mut(block_id).add_item(item_id)
+                },
+                Statement(statement_id) => {
+                    self.ast.lookup_block_mut(block_id).add_statement(statement_id)
+                },
             }
         }
+        
+        self.curr_block_id = parent_block_id;
 
-        Ok(self.ast.add_block(block))
+        Ok(block_id)
     }
     
     pub fn parse_global_nodes(&mut self) -> CompilerResult<()> {

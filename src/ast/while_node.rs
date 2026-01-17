@@ -4,14 +4,14 @@ use crate::ast::block::BlockId;
 #[derive(Debug)]
 pub struct WhileNode {
     pub condition: ExpressionId,
-    pub body: BlockId,
+    pub body_id: BlockId,
 }
 
 impl WhileNode {
     pub fn new(condition: ExpressionId, body: BlockId) -> Self {
         Self {
             condition,
-            body
+            body_id: body
         }
     }
 }

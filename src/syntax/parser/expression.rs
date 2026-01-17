@@ -1,12 +1,11 @@
 use crate::ast::access_node::{AccessNode, Member};
 use crate::ast::AST;
-use crate::ast::ast_node::{ASTNode, ExpressionId, Expression};
+use crate::ast::ast_node::{ExpressionId, Expression};
 use crate::ast::binary_operator_node::{BinaryOperatorNode};
 use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::index_node::IndexNode;
 use crate::ast::unary_operator_node::{UnaryOperatorNode};
 use crate::ast::variable_node::VariableNode;
-use crate::compiler_context::scope::ScopeId;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::lexer::token::TokenType::*;

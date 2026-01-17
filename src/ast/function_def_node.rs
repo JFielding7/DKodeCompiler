@@ -7,7 +7,7 @@ use crate::types::type_annotation::TypeAnnotation;
 pub struct FunctionDefNode {
     pub name: DefaultSymbol,
     pub params: Vec<Parameter>,
-    pub body: BlockId,
+    pub body_id: BlockId,
     pub return_type: Option<TypeAnnotation>,
 }
 
@@ -21,7 +21,7 @@ impl FunctionDefNode {
         Self {
             name,
             params,
-            body,
+            body_id: body,
             return_type,
         }
     }

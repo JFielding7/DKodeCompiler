@@ -7,7 +7,7 @@ use crate::source::source_span::SourceSpan;
 pub struct ForNode {
     pub item_variable: ForVariable,
     pub iterator: ExpressionId,
-    pub body: BlockId,
+    pub body_id: BlockId,
 }
 
 impl ForNode {
@@ -15,7 +15,7 @@ impl ForNode {
         Self {
             item_variable,
             iterator,
-            body
+            body_id: body
         }
     }
 }

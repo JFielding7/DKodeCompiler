@@ -17,7 +17,7 @@ pub mod block;
 
 #[derive(Debug)]
 pub struct AST {
-    pub item_arena: Vec<ASTNode<Item>>,
+    item_arena: Vec<ASTNode<Item>>,
     block_arena: Vec<Block>,
     statement_arena: Vec<ASTNode<Statement>>,
     expr_arena: Vec<ASTNode<Expression>>,
@@ -43,9 +43,9 @@ impl AST {
         ItemId::new(id)
     }
 
-    pub fn add_block(&mut self, block: Block) -> BlockId {
+    pub fn create_block(&mut self) -> BlockId {
         let id = self.block_arena.len();
-        self.block_arena.push(block);
+        self.block_arena.push(Block::new());
         BlockId::new(id)
     }
 
@@ -64,6 +64,10 @@ impl AST {
         self.expr_arena.push(ast_node);
         ExpressionId::new(id)
     }
+    
+    pub fn items(&self) -> &Vec<ASTNode<Item>> {
+        &self.item_arena
+    }
 
     pub fn lookup_item(&self, id: ItemId) -> &ASTNode<Item> {
         &self.item_arena[id.as_usize()]
@@ -79,6 +83,10 @@ impl AST {
 
     pub fn lookup_block(&self, id: BlockId) -> &Block {
         &self.block_arena[id.as_usize()]
+    }
+
+    pub fn lookup_block_mut(&mut self, id: BlockId) -> &mut Block {
+        &mut self.block_arena[id.as_usize()]
     }
 
     pub fn block_count(&self) -> usize {

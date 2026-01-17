@@ -3,7 +3,6 @@ use crate::error::compiler_error::SpannableError;
 use crate::lexer::error::LexerError::{InvalidToken, UnalignedIndent};
 use crate::lexer::token::TokenType::Indent;
 use crate::lexer::token::{Token, TokenType, INDENT_SIZE};
-use crate::source::source_file::SourceFile;
 use crate::source::source_span::SourceSpan;
 use crate::error::compiler_error::CompilerResult;
 use logos::Logos;

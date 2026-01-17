@@ -1,27 +1,20 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use string_interner::DefaultSymbol;
+use crate::ast::block::BlockId;
 use crate::compiler_context::symbol::Symbol;
 
 #[derive(Debug)]
 pub struct Scope {
     symbols: HashMap<DefaultSymbol, Symbol>,
-    pub parent: Option<ScopeId>,
+    pub parent: Option<BlockId>,
     pub function: Option<DefaultSymbol>,
 }
 
 impl Scope {
-    pub fn global() -> Self {
+    pub fn new(parent: Option<BlockId>, function: Option<DefaultSymbol>) -> Self {
         Self {
-            parent: None,
-            symbols: HashMap::new(),
-            function: None,
-        }
-    }
-
-    pub fn new(parent: ScopeId, function: Option<DefaultSymbol>) -> Self {
-        Self {
-            parent: Some(parent),
+            parent,
             symbols: HashMap::new(),
             function,
         }
@@ -54,23 +47,5 @@ impl Scope {
             }
             Entry::Occupied(_) => false,
         }
-    }
-
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct ScopeId(usize);
-
-impl ScopeId {
-    pub fn new(id: usize) -> Self {
-        Self(id)
-    }
-
-    pub fn as_usize(&self) -> usize {
-        self.0
-    }
-    
-    pub fn global() -> Self {
-        Self::new(0)
     }
 }

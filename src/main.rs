@@ -23,7 +23,7 @@ fn compile_source_file(source_file: &SourceFile, compiler_context: &mut Compiler
 
     let source_lines = lexical_analysis(source_file, compiler_context)?;
 
-    let ast: AST = syntax_analysis(source_lines)?;
+    let ast: AST = syntax_analysis(source_lines, compiler_context)?;
     
     let annotated_ast = semantic_analysis(ast, compiler_context)?;
 

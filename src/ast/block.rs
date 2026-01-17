@@ -1,5 +1,4 @@
 use crate::ast::ast_node::{ItemId, StatementId};
-use crate::compiler_context::scope::ScopeId;
 
 #[derive(Debug)]
 pub struct Block {

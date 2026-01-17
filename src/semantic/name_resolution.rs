@@ -4,7 +4,7 @@ use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, Statemen
 use crate::ast::ast_node::Expression::Variable;
 use crate::ast::ast_node::Item::FunctionDef;
 use crate::ast::binary_operator_node::BinaryOperatorNode;
-use crate::ast::block::{Block, BlockId};
+use crate::ast::block::BlockId;
 use crate::ast::for_node::ForNode;
 use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::function_def_node::FunctionDefNode;
@@ -13,32 +13,29 @@ use crate::ast::index_node::IndexNode;
 use crate::ast::variable_node::VariableNode;
 use crate::ast::while_node::WhileNode;
 use crate::compiler_context::CompilerContext;
-use crate::compiler_context::scope::ScopeId;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
 use crate::semantic::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, UndefinedVariable};
 use crate::source::source_span::SourceSpan;
 
-pub struct NameResolver<'a> {
-    ast: &'a AST,
-    ctx: &'a mut CompilerContext,
-    curr_scope_id: ScopeId,
-    block_scope_ids: Vec<ScopeId>,
+pub struct NameResolver<'ast, 'compiler_ctx> {
+    ast: &'ast AST,
+    ctx: &'compiler_ctx mut CompilerContext,
+    curr_block_id: BlockId,
 }
 
-impl<'a> NameResolver<'a> {
-    fn new(ast: &'a AST, ctx: &'a mut CompilerContext) -> Self {
+impl<'ast, 'compiler_ctx> NameResolver<'ast, 'compiler_ctx> {
+    fn new(ast: &'ast AST, ctx: &'compiler_ctx mut CompilerContext) -> Self {
         Self {
             ast,
             ctx,
-            curr_scope_id: ScopeId::global(),
-            block_scope_ids: vec![ScopeId::new(0); ast.block_count()]
+            curr_block_id: ast.global_block_id,
         }
     }
 
     fn resolve_variable(&mut self, var: &VariableNode, span: SourceSpan) -> CompilerResult<()> {
-        if self.ctx.symbol_table.contains(var.name, self.curr_scope_id) {
+        if self.ctx.symbol_table.contains(var.name, self.curr_block_id) {
             Ok(())
         } else {
             Err(UndefinedVariable(var.name).at(span))
@@ -51,7 +48,7 @@ impl<'a> NameResolver<'a> {
 
             let left_node = self.ast.lookup_expression(op.left);
             if let Variable(var) = &left_node.node_type {
-                self.ctx.symbol_table.insert(var.name, left_node.span, self.curr_scope_id);
+                self.ctx.symbol_table.insert(var.name, left_node.span, self.curr_block_id);
             } else {
                 self.resolve_expression(op.left)?;
             }
@@ -87,18 +84,13 @@ impl<'a> NameResolver<'a> {
     }
 
     fn resolve_if(&mut self, if_node: &IfNode) -> CompilerResult<()> {
-        let curr_scope_id = self.curr_scope_id;
-
         for cond_block in &if_node.condition_blocks {
             self.resolve_expression(cond_block.condition)?;
-
-            let body_scope = self.ctx.symbol_table.add_block_scope(curr_scope_id);
-            self.resolve_block(cond_block.body, body_scope)?;
+            self.resolve_block(cond_block.body)?;
         }
 
         if let Some(block_id) = if_node.else_body {
-            let else_body_scope = self.ctx.symbol_table.add_block_scope(curr_scope_id);
-            self.resolve_block(block_id, else_body_scope)?;
+            self.resolve_block(block_id)?;
         }
 
         Ok(())
@@ -106,9 +98,7 @@ impl<'a> NameResolver<'a> {
 
     fn resolve_while(&mut self, while_node: &WhileNode) -> CompilerResult<()> {
         self.resolve_expression(while_node.condition)?;
-
-        let body_scope = self.ctx.symbol_table.add_block_scope(self.curr_scope_id);
-        self.resolve_block(while_node.body, body_scope)?;
+        self.resolve_block(while_node.body_id)?;
 
         Ok(())
     }
@@ -118,10 +108,9 @@ impl<'a> NameResolver<'a> {
 
         let item_var = &for_node.item_variable;
 
-        let body_scope = self.ctx.symbol_table.add_block_scope(self.curr_scope_id);
-        self.ctx.symbol_table.insert(item_var.name, item_var.span, body_scope);
+        self.ctx.symbol_table.insert(item_var.name, item_var.span, for_node.body_id);
 
-        self.resolve_block(for_node.body, body_scope)?;
+        self.resolve_block(for_node.body_id)?;
 
         Ok(())
     }
@@ -202,8 +191,8 @@ impl<'a> NameResolver<'a> {
 
             match &item.node_type {
                 FunctionDef(func_def_node) => {
-                    let scope_id = self.block_scope_ids[func_def_node.body.as_usize()];
-                    self.resolve_block(func_def_node.body, scope_id)?;
+                    println!("{:?}", func_def_node.body_id);
+                    self.resolve_block(func_def_node.body_id)?;
                 }
             }
         }
@@ -212,27 +201,19 @@ impl<'a> NameResolver<'a> {
     }
 
     fn resolve_function_signature(&mut self, func_def_node: &FunctionDefNode, span: SourceSpan) -> CompilerResult<()> {
-        let curr_scope_id = self.curr_scope_id;
-        let func_body_scope = self.ctx.symbol_table.add_function_scope(
-            func_def_node.name, curr_scope_id
-        );
+        let curr_block_id = self.curr_block_id;
 
-        if !self.ctx.symbol_table.insert(func_def_node.name, span, curr_scope_id) {
+        if !self.ctx.symbol_table.insert(func_def_node.name, span, curr_block_id) {
             return Err(DuplicateFunctionName(func_def_node.name).at(span))
         }
 
         for param in &func_def_node.params {
             if !self.ctx.symbol_table.insert(
-                param.name, param.span, func_body_scope
+                param.name, param.span, func_def_node.body_id
             ) {
                 return Err(DuplicateParameterName(param.name).at(param.span));
             }
         }
-
-        self.block_scope_ids[func_def_node.body.as_usize()] = func_body_scope;
-
-        // TODO
-        // self.resolve_block(func_def_node.body, func_body_scope)?;
 
         Ok(())
     }
@@ -251,9 +232,10 @@ impl<'a> NameResolver<'a> {
         Ok(())
     }
 
-    fn resolve_block(&mut self, block_id: BlockId, scope_id: ScopeId) -> CompilerResult<()> {
-        let parent_scope_id = self.curr_scope_id;
-        self.curr_scope_id = scope_id;
+    fn resolve_block(&mut self, block_id: BlockId) -> CompilerResult<()> {
+
+        let parent_scope_id = self.curr_block_id;
+        self.curr_block_id = block_id;
 
         let block = self.ast.lookup_block(block_id);
 
@@ -261,19 +243,16 @@ impl<'a> NameResolver<'a> {
         self.resolve_item_blocks(&block.items)?;
         self.resolve_statements(&block.statements)?;
 
-        self.block_scope_ids[block_id.as_usize()] = scope_id;
-
-        self.curr_scope_id = parent_scope_id;
+        self.curr_block_id = parent_scope_id;
 
         Ok(())
     }
 
-    pub fn resolve(ast: &'a AST, ctx: &'a mut CompilerContext) -> CompilerResult<Vec<ScopeId>> {
-        let global_scope_id = ScopeId::global();
+    pub fn resolve(ast: &'ast AST, ctx: &'compiler_ctx mut CompilerContext) -> CompilerResult<()> {
 
         let mut resolver = NameResolver::new(ast, ctx);
-        resolver.resolve_block(ast.global_block_id, global_scope_id)?;
+        resolver.resolve_block(ast.global_block_id)?;
 
-        Ok(resolver.block_scope_ids)
+        Ok(())
     }
 }

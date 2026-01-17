@@ -21,30 +21,27 @@ use crate::ast::block::BlockId;
 use crate::ast::for_node::ForNode;
 use crate::ast::if_node::IfNode;
 use crate::ast::while_node::WhileNode;
-use crate::compiler_context::scope::ScopeId;
 
-pub struct TypeSynthesizer<'a> {
-    ast: &'a AST,
-    ctx: &'a mut CompilerContext,
-    block_scope_ids: &'a Vec<ScopeId>,
-    ast_node_data_types: Vec<Option<DataTypeId>>,
+pub struct TypeSynthesizer<'ast, 'compiler_ctx> {
+    ast: &'ast AST,
+    ctx: &'compiler_ctx mut CompilerContext,
+    ast_expr_data_types: Vec<Option<DataTypeId>>,
     unary_op_impl: OperatorRegistry<UnaryOperator>,
     binary_op_impl: OperatorRegistry<BinaryOperator>,
-    curr_scope_id: ScopeId,
+    curr_block_id: BlockId,
 }
 
-impl<'a> TypeSynthesizer<'a> {
-    fn new(ast: &'a AST, ctx: &'a mut CompilerContext, block_scope_ids: &'a Vec<ScopeId>) -> Self {
+impl<'ast, 'compiler_ctx> TypeSynthesizer<'ast, 'compiler_ctx> {
+    fn new(ast: &'ast AST, ctx: &'compiler_ctx mut CompilerContext) -> Self {
         let ast_node_data_type = vec![None; ast.expression_count()];
 
         Self {
             ast,
             ctx,
-            block_scope_ids,
-            ast_node_data_types: ast_node_data_type,
+            ast_expr_data_types: ast_node_data_type,
             unary_op_impl: OperatorRegistry::new(),
             binary_op_impl: OperatorRegistry::new(),
-            curr_scope_id: ScopeId::global(),
+            curr_block_id: ast.global_block_id,
         }
     }
 
@@ -53,14 +50,14 @@ impl<'a> TypeSynthesizer<'a> {
         expr_id: ExpressionId,
         data_type_id: Option<DataTypeId>
     ) {
-        self.ast_node_data_types[expr_id.as_usize()] = data_type_id;
+        self.ast_expr_data_types[expr_id.as_usize()] = data_type_id;
     }
     
     fn compute_variable_type(
         &self,
         var_name: DefaultSymbol,
     ) -> CompilerResult<Option<DataTypeId>> {
-        match self.ctx.symbol_table.lookup(var_name, self.curr_scope_id) {
+        match self.ctx.symbol_table.lookup(var_name, self.curr_block_id) {
             None => Ok(None),
             Some(symbol) => Ok(symbol.data_type)
         }
@@ -94,11 +91,11 @@ impl<'a> TypeSynthesizer<'a> {
         let node = self.ast.lookup_expression(var_id);
 
         if let Variable(var) = &node.node_type {
-            println!("Scope: {:?} {}", self.curr_scope_id, self.ctx.string_interner.get_str(var.name));
+            println!("Scope: {:?} {}", self.curr_block_id, self.ctx.string_interner.get_str(var.name));
             self.ctx.symbol_table
-                .assign_type(data_type_id, var.name, self.curr_scope_id);
+                .assign_type(data_type_id, var.name, self.curr_block_id);
 
-            self.ast_node_data_types[var_id.as_usize()] = Some(data_type_id);
+            self.ast_expr_data_types[var_id.as_usize()] = Some(data_type_id);
             Ok(())
         } else {
             Err(TypeInference.at(node.span))
@@ -256,7 +253,7 @@ impl<'a> TypeSynthesizer<'a> {
 
         let node = self.ast.lookup_expression(expr_id);
         let span = node.span;
-        let scope_id = self.curr_scope_id;
+        let scope_id = self.curr_block_id;
 
         let func_name = match self.ctx.symbol_table.scope_function_name(scope_id) {
             Some(func_name) => func_name,
@@ -410,7 +407,7 @@ impl<'a> TypeSynthesizer<'a> {
             let node = self.ast.lookup_item(node_id);
 
             let FunctionDef(func_def_node) = &node.node_type;
-            self.compute_block_types(func_def_node.body)?;
+            self.compute_block_types(func_def_node.body_id)?;
         }
 
         Ok(())
@@ -420,7 +417,6 @@ impl<'a> TypeSynthesizer<'a> {
         &mut self,
         func_def_node: &FunctionDefNode,
     ) -> CompilerResult<Vec<DataTypeId>> {
-        let body_scope_id = self.block_scope_ids[func_def_node.body.as_usize()];
 
         let mut param_types = Vec::new();
 
@@ -430,7 +426,7 @@ impl<'a> TypeSynthesizer<'a> {
                 .get_type_id(param.type_annotation.type_name, &self.ctx.string_interner)
                 .ok_or_else(|| UndefinedType.at(param.span))?;
 
-            self.ctx.symbol_table.assign_type(type_id, param.name, body_scope_id);
+            self.ctx.symbol_table.assign_type(type_id, param.name, func_def_node.body_id);
 
             param_types.push(type_id);
         }
@@ -473,7 +469,7 @@ impl<'a> TypeSynthesizer<'a> {
         let function_type_id = self.ctx.type_arena.add_if_new_type(function_type);
 
         self.ctx.symbol_table.assign_type(
-            function_type_id, func_def_node.name, self.curr_scope_id
+            function_type_id, func_def_node.name, self.curr_block_id
         );
 
         Ok(())
@@ -491,8 +487,8 @@ impl<'a> TypeSynthesizer<'a> {
     }
 
     fn compute_block_types(&mut self, block_id: BlockId) -> CompilerResult<()> {
-        let parent_scope_id = self.curr_scope_id;
-        self.curr_scope_id = self.block_scope_ids[block_id.as_usize()];
+        let parent_scope_id = self.curr_block_id;
+        self.curr_block_id = block_id;
 
         let block = self.ast.lookup_block(block_id);
 
@@ -500,20 +496,20 @@ impl<'a> TypeSynthesizer<'a> {
         self.compute_item_block_types(&block.items)?;
         self.compute_statement_types(&block.statements)?;
 
-        self.curr_scope_id = parent_scope_id;
+        self.curr_block_id = parent_scope_id;
 
         Ok(())
     }
 
-    pub fn synthesize(ast: &AST, ctx: &mut CompilerContext, block_scope_ids: &Vec<ScopeId>) -> CompilerResult<Vec<DataTypeId>> {
-        let mut synthesizer = TypeSynthesizer::new(&ast, ctx, block_scope_ids);
+    pub fn synthesize(ast: &AST, ctx: &mut CompilerContext) -> CompilerResult<Vec<DataTypeId>> {
+        let mut synthesizer = TypeSynthesizer::new(&ast, ctx);
         synthesizer.compute_block_types(ast.global_block_id)?;
 
         let mut ast_node_types = Vec::with_capacity(
-            synthesizer.ast_node_data_types.len()
+            synthesizer.ast_expr_data_types.len()
         );
 
-        for (i, &node_data_type) in synthesizer.ast_node_data_types.iter().enumerate() {
+        for (i, &node_data_type) in synthesizer.ast_expr_data_types.iter().enumerate() {
             match node_data_type {
                 None => return Err(TypeInference.at(
                     ast.lookup_expression(ExpressionId::new(i)).span)
