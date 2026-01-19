@@ -248,21 +248,28 @@ impl<'a> ExpressionParser<'a> {
         };
 
         loop {
-            function_args.push(curr_arg_id);
-
             match &self.ast.lookup_expression(curr_arg_id).node_type {
                 Expression::BinaryOperator(op) => {
 
                     match op.op_type {
-                        BinaryOperator::CommaOperator => curr_arg_id = op.left,
-                        _ => break
+                        BinaryOperator::CommaOperator => {
+                            function_args.push(op.right);
+                            curr_arg_id = op.left
+                        },
+                        _ => {
+                            function_args.push(curr_arg_id);
+                            break;
+                        }
                     }
                 }
-                _ => break
+                _ => {
+                    function_args.push(curr_arg_id);
+                    break
+                }
             }
         }
 
-        Ok(function_args)
+        Ok(function_args.into_iter().rev().collect())
     }
 
     fn parse_accessed_member(&mut self) -> CompilerResult<Member> {

@@ -20,16 +20,16 @@ use crate::compiler_context::CompilerContext;
 use crate::compiler_context::symbol_table::scope::Scope;
 use crate::syntax::parser::token_stream::TokenStream;
 
-pub struct ASTParser<'ctx> {
+pub struct ASTParser<'llvm_ctx> {
     pub ast: AST,
     statements_iter: SourceStatementsIter,
     curr_block_id: Option<BlockId>,
     curr_function_name: Option<DefaultSymbol>,
-    ctx: &'ctx mut CompilerContext,
+    ctx: &'llvm_ctx mut CompilerContext,
 }
 
-impl<'ctx> ASTParser<'ctx> {
-    pub fn new(statements: SourceStatements, ctx: &'ctx mut CompilerContext) -> Self {
+impl<'llvm_ctx> ASTParser<'llvm_ctx> {
+    pub fn new(statements: SourceStatements, ctx: &'llvm_ctx mut CompilerContext) -> Self {
         Self {
             statements_iter: statements.into_iter(),
             ast: AST::new(),
@@ -175,8 +175,8 @@ impl<'ctx> ASTParser<'ctx> {
         Ok(self.ast.add_statement(statement, expr_statement.full_span()))
     }
 
-    fn parse_next_statement_ast_node(&mut self, statement: Statement, expected_indent_size: usize) -> CompilerResult<SourceStatementNode> {
-        use SourceStatementNode::*;
+    fn parse_next_statement_ast_node(&mut self, statement: Statement, expected_indent_size: usize) -> CompilerResult<BlockChildNodeId> {
+        use BlockChildNodeId::*;
 
         if statement.indent_size > expected_indent_size {
             return Err(IndentTooLarge.at(statement.indent_token().span))
@@ -194,7 +194,7 @@ impl<'ctx> ASTParser<'ctx> {
     }
 
     fn parse_block(&mut self, indent_size: usize) -> CompilerResult<BlockId> {
-        use SourceStatementNode::*;
+        use BlockChildNodeId::*;
 
         let block_id = self.ast.create_block();
         let block_scope = Scope::new(self.curr_block_id, self.curr_function_name);
@@ -234,7 +234,7 @@ impl<'ctx> ASTParser<'ctx> {
     }
 }
 
-enum SourceStatementNode {
+enum BlockChildNodeId {
     Item(ItemId),
     Statement(StatementId),
 }

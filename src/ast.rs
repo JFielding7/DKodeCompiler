@@ -31,7 +31,7 @@ impl AST {
             block_arena: Vec::new(),
             statement_arena: Vec::new(),
             expr_arena: Vec::new(),
-            global_block_id: BlockId::new(0),
+            global_block_id: BlockId::new(0), // TODO: maybe fix garbage value
         }
     }
 

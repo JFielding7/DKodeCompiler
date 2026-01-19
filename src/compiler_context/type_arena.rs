@@ -61,13 +61,13 @@ impl TypeArena {
         match self.get_data_type(id) {
             Builtin(builtin_type) => format!("{builtin_type}"),
             UserDefined(data_type) => string_interner.get_str(*data_type).to_string(),
-            Fn { param_types, return_type } => {
-                format!("fn({}): {}", 
-                        param_types
+            Fn(function_type) => {
+                format!("fn({}): {}",
+                        function_type.param_types
                             .iter()
                             .map(|t| self.format_type(*t, string_interner))
                             .collect::<Vec<String>>().join(", "), 
-                        self.format_type(*return_type, string_interner)
+                        self.format_type(function_type.return_type, string_interner)
                 )
             }
         }

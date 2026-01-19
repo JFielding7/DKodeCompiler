@@ -19,14 +19,14 @@ use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
 use crate::semantic::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, UndefinedVariable};
 use crate::source::source_span::SourceSpan;
 
-pub struct NameResolver<'ctx> {
-    ast: &'ctx AST,
-    ctx: &'ctx mut CompilerContext,
+pub struct NameResolver<'ast, 'llvm_ctx> {
+    ast: &'ast AST,
+    ctx: &'llvm_ctx mut CompilerContext,
     curr_block_id: BlockId,
 }
 
-impl<'ctx> NameResolver<'ctx> {
-    fn new(ast: &'ctx AST, ctx: &'ctx mut CompilerContext) -> Self {
+impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
+    fn new(ast: &'ast AST, ctx: &'llvm_ctx mut CompilerContext) -> Self {
         Self {
             ast,
             ctx,
@@ -48,7 +48,7 @@ impl<'ctx> NameResolver<'ctx> {
 
             let left_node = self.ast.lookup_expression(op.left);
             if let Variable(var) = &left_node.node_type {
-                self.ctx.symbol_table.insert(var.name, left_node.span, self.curr_block_id);
+                self.ctx.symbol_table.insert_variable(var.name, left_node.span, self.curr_block_id);
             } else {
                 self.resolve_expression(op.left)?;
             }
@@ -108,7 +108,7 @@ impl<'ctx> NameResolver<'ctx> {
 
         let item_var = &for_node.item_variable;
 
-        self.ctx.symbol_table.insert(item_var.name, item_var.span, for_node.body_id);
+        self.ctx.symbol_table.insert_variable(item_var.name, item_var.span, for_node.body_id);
 
         self.resolve_block(for_node.body_id)?;
 
@@ -191,7 +191,6 @@ impl<'ctx> NameResolver<'ctx> {
 
             match &item.node_type {
                 FunctionDef(func_def_node) => {
-                    println!("{:?}", func_def_node.body_id);
                     self.resolve_block(func_def_node.body_id)?;
                 }
             }
@@ -203,13 +202,13 @@ impl<'ctx> NameResolver<'ctx> {
     fn resolve_function_signature(&mut self, func_def_node: &FunctionDefNode, span: SourceSpan) -> CompilerResult<()> {
         let curr_block_id = self.curr_block_id;
 
-        if !self.ctx.symbol_table.insert(func_def_node.name, span, curr_block_id) {
+        if !self.ctx.symbol_table.insert_variable(func_def_node.name, span, curr_block_id) {
             return Err(DuplicateFunctionName(func_def_node.name).at(span))
         }
 
-        for param in &func_def_node.params {
-            if !self.ctx.symbol_table.insert(
-                param.name, param.span, func_def_node.body_id
+        for (i, param) in func_def_node.params.iter().enumerate() {
+            if !self.ctx.symbol_table.insert_function_param(
+                param.name, i, param.span, func_def_node.body_id
             ) {
                 return Err(DuplicateParameterName(param.name).at(param.span));
             }
@@ -248,7 +247,7 @@ impl<'ctx> NameResolver<'ctx> {
         Ok(())
     }
 
-    pub fn resolve(ast: &'ctx AST, ctx: &'ctx mut CompilerContext) -> CompilerResult<()> {
+    pub fn resolve(ast: &'llvm_ctx AST, ctx: &'llvm_ctx mut CompilerContext) -> CompilerResult<()> {
 
         let mut resolver = NameResolver::new(ast, ctx);
         resolver.resolve_block(ast.global_block_id)?;

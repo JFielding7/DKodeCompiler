@@ -1,4 +1,3 @@
-use inkwell::values::PointerValue;
 use string_interner::DefaultSymbol;
 use crate::types::data_type::DataTypeId;
 use crate::source::source_span::SourceSpan;
@@ -7,19 +6,19 @@ use crate::source::source_span::SourceSpan;
 pub struct Symbol {
     pub id: SymbolId,
     pub name: DefaultSymbol,
-    pub data_type: Option<DataTypeId>,
-    pub pointer: Option<usize>,
+    pub data_type_id: Option<DataTypeId>,
+    pub func_param_index: Option<usize>,
     def_span: SourceSpan,
 }
 
 impl Symbol {
-    pub fn new(id: SymbolId, name: DefaultSymbol, def_span: SourceSpan) -> Self {
+    pub fn new(id: SymbolId, name: DefaultSymbol, func_param_index: Option<usize>, def_span: SourceSpan) -> Self {
         Self {
             id,
             name,
             def_span,
-            pointer: None,
-            data_type: None,
+            func_param_index,
+            data_type_id: None,
         }
     }
 }

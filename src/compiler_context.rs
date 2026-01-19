@@ -1,4 +1,3 @@
-use inkwell::context::Context;
 use crate::compiler_context::global_string_interner::GlobalStringInterner;
 use crate::compiler_context::symbol_table::SymbolTable;
 use crate::compiler_context::type_arena::TypeArena;

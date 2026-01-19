@@ -3,7 +3,7 @@ use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValueEnum, PointerValue};
 
 pub enum Value<'llvm_ctx> {
-    RValue(BasicValueEnum<'llvm_ctx>),
+    RValue(Option<BasicValueEnum<'llvm_ctx>>),
     LValue {
         ptr: PointerValue<'llvm_ctx>,
         pointee_type: BasicTypeEnum<'llvm_ctx>
@@ -15,8 +15,8 @@ pub struct LValueType<'llvm_ctx> {
     pointee_type: BasicTypeEnum<'llvm_ctx>
 }
 
-impl<'ctx> LValueType<'ctx> {
-    pub fn new(ptr: PointerValue<'static>, pointee_type: BasicTypeEnum<'ctx>) -> Self {
+impl<'llvm_ctx> LValueType<'llvm_ctx> {
+    pub fn new(ptr: PointerValue<'llvm_ctx>, pointee_type: BasicTypeEnum<'llvm_ctx>) -> Self {
         Self {
             ptr,
             pointee_type,
@@ -24,10 +24,10 @@ impl<'ctx> LValueType<'ctx> {
     }
 }
 
-impl<'ctx> Value<'ctx> {
-    pub fn to_rvalue(&self, builder: &Builder<'ctx>) -> BasicValueEnum<'ctx> {
+impl<'llvm_ctx> Value<'llvm_ctx> {
+    pub fn to_rvalue(&self, builder: &Builder<'llvm_ctx>) -> BasicValueEnum<'llvm_ctx> {
         match self {
-            Value::RValue(val) => *val,
+            Value::RValue(val) => val.unwrap(),
             Value::LValue { ptr, pointee_type } => {
                 builder.build_load(*pointee_type, *ptr, "").unwrap()
             },

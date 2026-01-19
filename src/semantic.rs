@@ -1,4 +1,5 @@
 use crate::ast::AST;
+use crate::ast::ast_node::ExpressionId;
 use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::semantic::name_resolution::NameResolver;
@@ -22,6 +23,10 @@ impl AnnotatedAST {
             ast,
             ast_expr_data_types: ast_node_data_types
         }
+    }
+    
+    pub fn expr_data_type(&self, expr_id: ExpressionId) -> DataTypeId {
+        self.ast_expr_data_types[expr_id.as_usize()]
     }
 }
 

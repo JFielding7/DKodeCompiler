@@ -54,6 +54,10 @@ impl SymbolTable {
         None
     }
     
+    pub fn lookup_expect_exist(&self, name: DefaultSymbol, block_id: BlockId) -> &Symbol {
+        self.lookup(name, block_id).expect("Symbol must exist")
+    }
+    
     pub fn contains(&self, name: DefaultSymbol, block_id: BlockId) -> bool {
         let mut curr_scope = Some(block_id);
 
@@ -73,12 +77,22 @@ impl SymbolTable {
     pub fn scope_function_name(&self, block_id: BlockId) -> Option<DefaultSymbol> {
         self.scopes[block_id.as_usize()].function
     }
-
-    pub fn insert(&mut self, name: DefaultSymbol, def_span: SourceSpan, block_id: BlockId) -> bool {
-        let symbol = Symbol::new(SymbolId::new(self.id_counter), name, def_span);
+    
+    fn insert_symbol(&mut self, symbol: Symbol, block_id: BlockId) -> bool {
         self.id_counter += 1;
         self.scopes[block_id.as_usize()].insert(symbol)
     }
+
+    pub fn insert_variable(&mut self, name: DefaultSymbol, def_span: SourceSpan, block_id: BlockId) -> bool {
+        let symbol = Symbol::new(SymbolId::new(self.id_counter), name, None, def_span);
+        self.insert_symbol(symbol, block_id)
+    }
+    
+    pub fn insert_function_param(&mut self, name: DefaultSymbol, param_index: usize, def_span: SourceSpan, block_id: BlockId) -> bool {
+        let symbol = Symbol::new(SymbolId::new(self.id_counter), name, Some(param_index), def_span);
+        self.insert_symbol(symbol, block_id)
+    }
+    
     
     pub fn assign_type(&mut self, data_type_id: DataTypeId, name: DefaultSymbol, block_id: BlockId) {
         let mut curr_scope = Some(block_id);
@@ -87,7 +101,7 @@ impl SymbolTable {
             let scope = &mut self.scopes[id.as_usize()];
 
             if let Some(symbol) = scope.lookup_mut(name) {
-                symbol.data_type = Some(data_type_id);
+                symbol.data_type_id = Some(data_type_id);
                 return;
             }
 

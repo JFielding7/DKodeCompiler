@@ -1,10 +1,11 @@
-use crate::code_gen::generator::CodeGenerator;
 use crate::compiler_context::CompilerContext;
 use crate::semantic::AnnotatedAST;
 use inkwell::context::Context;
+use generator::CodeGenerator;
 
 pub mod generator;
 mod value;
+mod types;
 
 pub fn generate_code(ast: AnnotatedAST, ctx: &mut CompilerContext) {
     let llvm_context = Context::create();

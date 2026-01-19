@@ -20,15 +20,15 @@ use crate::ast::for_node::ForNode;
 use crate::ast::if_node::IfNode;
 use crate::ast::while_node::WhileNode;
 
-pub struct TypeSynthesizer<'ctx> {
-    ast: &'ctx AST,
-    ctx: &'ctx mut CompilerContext,
+pub struct TypeSynthesizer<'ast, 'llvm_ctx> {
+    ast: &'ast AST,
+    ctx: &'llvm_ctx mut CompilerContext,
     ast_expr_data_types: Vec<Option<DataTypeId>>,
     curr_block_id: BlockId,
 }
 
-impl<'ctx> TypeSynthesizer<'ctx> {
-    fn new(ast: &'ctx AST, ctx: &'ctx mut CompilerContext) -> Self {
+impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
+    fn new(ast: &'ast AST, ctx: &'llvm_ctx mut CompilerContext) -> Self {
         let ast_node_data_type = vec![None; ast.expression_count()];
 
         Self {
@@ -53,7 +53,7 @@ impl<'ctx> TypeSynthesizer<'ctx> {
     ) -> CompilerResult<Option<DataTypeId>> {
         match self.ctx.symbol_table.lookup(var_name, self.curr_block_id) {
             None => Ok(None),
-            Some(symbol) => Ok(symbol.data_type)
+            Some(symbol) => Ok(symbol.data_type_id)
         }
     }
 
@@ -147,13 +147,15 @@ impl<'ctx> TypeSynthesizer<'ctx> {
         param_types: &Vec<DataTypeId>,
         arg_ids: &Vec<ExpressionId>
     ) -> CompilerResult<()> {
-        let param_iter = param_types.iter().zip(arg_ids.iter().rev());
+        let param_iter = param_types.iter().zip(arg_ids);
 
         for (&formal_param_type_id, &param_node_id) in param_iter {
             let param_node = self.ast.lookup_expression(param_node_id);
 
             match self.compute_expression_type(param_node_id)? {
-                None => return Err(TypeInference.at(param_node.span)),
+                None => {
+                    return Err(TypeInference.at(param_node.span))
+                },
                 Some(actual_param_type_id) => {
                     if actual_param_type_id != formal_param_type_id {
                         return Err(MismatchedTypes {
@@ -184,10 +186,10 @@ impl<'ctx> TypeSynthesizer<'ctx> {
 
                 // TODO: avoid cloning
                 match self.ctx.type_arena.get_data_type(func_type).clone() {
-                    Fn { param_types, return_type } => {
+                    Fn(function_type) => {
                         let arg_expressions = &func_call_node.args;
                         let actual_args_count = arg_expressions.len();
-                        let expected_args_count = param_types.len();
+                        let expected_args_count = function_type.param_types.len();
 
                         if actual_args_count != expected_args_count {
                             return Err(IncorrectArgumentCount {
@@ -196,14 +198,16 @@ impl<'ctx> TypeSynthesizer<'ctx> {
                             }.at(span))
                         }
 
-                        self.check_param_types(&param_types, &arg_expressions)?;
+                        self.check_param_types(&function_type.param_types, &arg_expressions)?;
 
-                        return_type
+                        function_type.return_type
                     },
                     _ => return Err(FunctionExpected.at(func_node.span))
                 }
             },
-            None => return Err(TypeInference.at(func_node.span))
+            None => {
+                return Err(TypeInference.at(func_node.span))
+            }
         })
     }
 
@@ -230,11 +234,11 @@ impl<'ctx> TypeSynthesizer<'ctx> {
         let func_type = self.ctx.symbol_table
             .lookup(func_name, scope_id)
             .expect("Function must be defined")
-            .data_type
+            .data_type_id
             .expect("Function must have data type");
 
         let expected_return_type = match self.ctx.type_arena.get_data_type(func_type) {
-            Fn { return_type, .. } => *return_type,
+            Fn(function_type) => function_type.return_type,
             _ => unreachable!("Function must have function type")
         };
 
@@ -424,10 +428,7 @@ impl<'ctx> TypeSynthesizer<'ctx> {
         let param_types = self.compute_function_param_types(func_def_node)?;
         let return_type = self.compute_function_return_type(func_def_node)?;
 
-        let function_type = DataType::Fn {
-            param_types,
-            return_type
-        };
+        let function_type = DataType::function(param_types, return_type);
 
         let function_type_id = self.ctx.type_arena.add_if_new_type(function_type);
 
@@ -464,7 +465,7 @@ impl<'ctx> TypeSynthesizer<'ctx> {
         Ok(())
     }
 
-    pub fn synthesize(ast: &'ctx AST, ctx: &'ctx mut CompilerContext) -> CompilerResult<Vec<DataTypeId>> {
+    pub fn synthesize(ast: &'llvm_ctx AST, ctx: &'llvm_ctx mut CompilerContext) -> CompilerResult<Vec<DataTypeId>> {
         let mut synthesizer = TypeSynthesizer::new(&ast, ctx);
         synthesizer.compute_block_types(ast.global_block_id)?;
 
@@ -474,9 +475,13 @@ impl<'ctx> TypeSynthesizer<'ctx> {
 
         for (i, &node_data_type) in synthesizer.ast_expr_data_types.iter().enumerate() {
             match node_data_type {
-                None => return Err(TypeInference.at(
-                    ast.lookup_expression(ExpressionId::new(i)).span)
-                ),
+                None => {
+                    ast_expr_types.push(DataTypeId(0))
+                    // TODO
+                    // return Err(TypeInference.at(
+                    //     ast.lookup_expression(ExpressionId::new(i)).span)
+                    // )
+                },
                 Some(node_type) => {
                     ast_expr_types.push(node_type);
                 }

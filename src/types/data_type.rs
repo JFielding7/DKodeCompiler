@@ -5,11 +5,25 @@ use crate::types::builtin_type::BuiltinType;
 pub enum DataType {
     Builtin(BuiltinType),
     UserDefined(DefaultSymbol),
-    Fn {
-        param_types: Vec<DataTypeId>,
-        return_type: DataTypeId
-    },
+    Fn(FunctionDataType),
 }
+
+impl DataType {
+    pub fn function(param_types: Vec<DataTypeId>, return_type: DataTypeId) -> Self {
+        DataType::Fn(FunctionDataType {
+            param_types,
+            return_type,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionDataType {
+    pub param_types: Vec<DataTypeId>,
+    pub return_type: DataTypeId
+}
+
+
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct DataTypeId(pub usize);
