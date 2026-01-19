@@ -2,7 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use string_interner::DefaultSymbol;
 use crate::ast::block::BlockId;
-use crate::compiler_context::symbol::Symbol;
+use crate::compiler_context::symbol_table::symbol::Symbol;
 
 #[derive(Debug)]
 pub struct Scope {

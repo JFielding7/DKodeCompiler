@@ -17,19 +17,19 @@ use crate::syntax::parser::source_statements::{SourceStatements, SourceStatement
 use crate::syntax::parser::statement::Statement;
 use crate::ast::ast_node::Statement::{ExpressionStatement, ReturnStatement};
 use crate::compiler_context::CompilerContext;
-use crate::compiler_context::scope::Scope;
+use crate::compiler_context::symbol_table::scope::Scope;
 use crate::syntax::parser::token_stream::TokenStream;
 
-pub struct ASTParser<'compiler_ctx> {
+pub struct ASTParser<'ctx> {
     pub ast: AST,
     statements_iter: SourceStatementsIter,
     curr_block_id: Option<BlockId>,
     curr_function_name: Option<DefaultSymbol>,
-    ctx: &'compiler_ctx mut CompilerContext,
+    ctx: &'ctx mut CompilerContext,
 }
 
-impl<'compiler_ctx> ASTParser<'compiler_ctx> {
-    pub fn new(statements: SourceStatements, ctx: &'compiler_ctx mut CompilerContext) -> Self {
+impl<'ctx> ASTParser<'ctx> {
+    pub fn new(statements: SourceStatements, ctx: &'ctx mut CompilerContext) -> Self {
         Self {
             statements_iter: statements.into_iter(),
             ast: AST::new(),

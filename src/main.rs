@@ -4,6 +4,7 @@ use crate::semantic::semantic_analysis;
 use crate::source::source_file::SourceFile;
 use error::Result;
 use crate::ast::AST;
+use crate::code_gen::generate_code;
 use crate::error::compiler_error::CompilerResult;
 use crate::lexer::lexical_analysis;
 use crate::syntax::syntax_analysis;
@@ -27,7 +28,7 @@ fn compile_source_file(source_file: &SourceFile, compiler_context: &mut Compiler
     
     let annotated_ast = semantic_analysis(ast, compiler_context)?;
 
-    // println!("{:?}", annotated_ast);
+    generate_code(annotated_ast, compiler_context);
 
     Ok(())
 }

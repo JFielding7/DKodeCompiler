@@ -19,14 +19,14 @@ use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
 use crate::semantic::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, UndefinedVariable};
 use crate::source::source_span::SourceSpan;
 
-pub struct NameResolver<'ast, 'compiler_ctx> {
-    ast: &'ast AST,
-    ctx: &'compiler_ctx mut CompilerContext,
+pub struct NameResolver<'ctx> {
+    ast: &'ctx AST,
+    ctx: &'ctx mut CompilerContext,
     curr_block_id: BlockId,
 }
 
-impl<'ast, 'compiler_ctx> NameResolver<'ast, 'compiler_ctx> {
-    fn new(ast: &'ast AST, ctx: &'compiler_ctx mut CompilerContext) -> Self {
+impl<'ctx> NameResolver<'ctx> {
+    fn new(ast: &'ctx AST, ctx: &'ctx mut CompilerContext) -> Self {
         Self {
             ast,
             ctx,
@@ -63,8 +63,8 @@ impl<'ast, 'compiler_ctx> NameResolver<'ast, 'compiler_ctx> {
     fn resolve_function_call(&mut self, call: &FunctionCallNode) -> CompilerResult<()> {
         self.resolve_expression(call.function)?;
 
-        if let Some(args) = call.args {
-            self.resolve_expression(args)?;
+        for arg in &call.args {
+            self.resolve_expression(*arg)?;
         }
 
         Ok(())
@@ -86,10 +86,10 @@ impl<'ast, 'compiler_ctx> NameResolver<'ast, 'compiler_ctx> {
     fn resolve_if(&mut self, if_node: &IfNode) -> CompilerResult<()> {
         for cond_block in &if_node.condition_blocks {
             self.resolve_expression(cond_block.condition)?;
-            self.resolve_block(cond_block.body)?;
+            self.resolve_block(cond_block.body_id)?;
         }
 
-        if let Some(block_id) = if_node.else_body {
+        if let Some(block_id) = if_node.else_body_id {
             self.resolve_block(block_id)?;
         }
 
@@ -248,7 +248,7 @@ impl<'ast, 'compiler_ctx> NameResolver<'ast, 'compiler_ctx> {
         Ok(())
     }
 
-    pub fn resolve(ast: &'ast AST, ctx: &'compiler_ctx mut CompilerContext) -> CompilerResult<()> {
+    pub fn resolve(ast: &'ctx AST, ctx: &'ctx mut CompilerContext) -> CompilerResult<()> {
 
         let mut resolver = NameResolver::new(ast, ctx);
         resolver.resolve_block(ast.global_block_id)?;

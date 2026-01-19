@@ -2,7 +2,7 @@ use crate::ast::AST;
 use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::semantic::name_resolution::NameResolver;
-use crate::semantic::type_synthesis::type_synthesizer::TypeSynthesizer;
+use crate::semantic::type_synthesis::TypeSynthesizer;
 use crate::types::data_type::DataTypeId;
 
 mod error;
@@ -11,7 +11,7 @@ mod name_resolution;
 
 #[derive(Debug)]
 pub struct AnnotatedAST {
-    ast: AST,
+    pub ast: AST,
     ast_expr_data_types: Vec<DataTypeId>,
     
 }
@@ -29,6 +29,6 @@ pub fn semantic_analysis(ast: AST, ctx: &mut CompilerContext) -> CompilerResult<
     NameResolver::resolve(&ast, ctx)?;
 
     let ast_expr_data_types = TypeSynthesizer::synthesize(&ast, ctx)?;
-    
+
     Ok(AnnotatedAST::new(ast, ast_expr_data_types))
 }

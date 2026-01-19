@@ -1,28 +1,12 @@
-use inkwell::builder::Builder;
-use inkwell::context::Context;
-use inkwell::module::Module;
+use crate::code_gen::generator::CodeGenerator;
 use crate::compiler_context::CompilerContext;
 use crate::semantic::AnnotatedAST;
+use inkwell::context::Context;
 
-struct CodeGenerator<'llvm_ctx, 'compiler_ctx> {
-    llvm_context: &'llvm_ctx Context,
-    module: Module<'llvm_ctx>,
-    builder: Builder<'llvm_ctx>,
-    compiler_context: &'compiler_ctx CompilerContext,
-    annotated_ast: AnnotatedAST
-}
+pub mod generator;
+mod value;
 
-impl<'llvm_ctx, 'compiler_ctx> CodeGenerator<'llvm_ctx, 'compiler_ctx> {
-    fn new(annotated_ast: AnnotatedAST, llvm_context: &'llvm_ctx Context, compiler_context: &'compiler_ctx CompilerContext) -> Self {
-        let module = llvm_context.create_module("code");
-        let builder = llvm_context.create_builder();
-
-        Self {
-            llvm_context,
-            module,
-            builder,
-            compiler_context,
-            annotated_ast
-        }
-    }
+pub fn generate_code(ast: AnnotatedAST, ctx: &mut CompilerContext) {
+    let llvm_context = Context::create();
+    CodeGenerator::generate_llvm(&ast, &llvm_context, ctx);
 }

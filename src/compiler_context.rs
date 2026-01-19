@@ -1,11 +1,10 @@
+use inkwell::context::Context;
 use crate::compiler_context::global_string_interner::GlobalStringInterner;
 use crate::compiler_context::symbol_table::SymbolTable;
 use crate::compiler_context::type_arena::TypeArena;
 
 pub mod symbol_table;
 pub mod type_arena;
-pub mod scope;
-pub mod symbol;
 mod global_string_interner;
 
 #[derive(Debug)]

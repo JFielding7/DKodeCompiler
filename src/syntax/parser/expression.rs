@@ -201,7 +201,10 @@ impl<'a> ExpressionParser<'a> {
         }
     }
 
-    fn parse_required_grouped_expression(&mut self, open_token: &Token) -> CompilerResult<ExpressionId> {
+    fn parse_required_grouped_expression(
+        &mut self, 
+        open_token: &Token
+    ) -> CompilerResult<ExpressionId> {
         if self.token_stream.empty() {
             return Err(UnmatchedGroupOpening(open_token.token_type).at(open_token.span));
         }
@@ -212,7 +215,10 @@ impl<'a> ExpressionParser<'a> {
         Ok(group)
     }
 
-    fn parse_optional_grouped_expression(&mut self, open_token: &Token) -> CompilerResult<Option<ExpressionId>> {
+    fn parse_optional_grouped_expression(
+        &mut self, 
+        open_token: &Token
+    ) -> CompilerResult<Option<ExpressionId>> {
         let group = match self.token_stream.peek() {
             Some(&token) => {
                 if *token == CloseParen {
@@ -226,6 +232,37 @@ impl<'a> ExpressionParser<'a> {
 
         self.assert_group_closed(open_token)?;
         Ok(group)
+    }
+
+    fn function_arg_expressions(
+        &mut self,
+        token: &Token,
+    ) -> CompilerResult<Vec<ExpressionId>> {
+        let args = self.parse_optional_grouped_expression(token)?;
+        
+        let mut function_args = Vec::new();
+
+        let mut curr_arg_id = match args {
+            Some(args_id) => args_id,
+            None => return Ok(function_args),
+        };
+
+        loop {
+            function_args.push(curr_arg_id);
+
+            match &self.ast.lookup_expression(curr_arg_id).node_type {
+                Expression::BinaryOperator(op) => {
+
+                    match op.op_type {
+                        BinaryOperator::CommaOperator => curr_arg_id = op.left,
+                        _ => break
+                    }
+                }
+                _ => break
+            }
+        }
+
+        Ok(function_args)
     }
 
     fn parse_accessed_member(&mut self) -> CompilerResult<Member> {
@@ -261,7 +298,11 @@ impl<'a> ExpressionParser<'a> {
         Ok(self.ast.add_expression(var_node, token.span))
     }
 
-    fn parse_unary_operation(&mut self, unary_op_type: UnaryOperator, token: &Token) -> CompilerResult<ExpressionId> {
+    fn parse_unary_operation(
+        &mut self, 
+        unary_op_type: UnaryOperator, 
+        token: &Token
+    ) -> CompilerResult<ExpressionId> {
         let unary_node = UnaryOperatorNode::new(
             unary_op_type,
             self.parse_expression_rec(Prefix.as_u8())?
@@ -292,7 +333,12 @@ impl<'a> ExpressionParser<'a> {
         }
     }
 
-    fn led_hook(&mut self, token: &Token, left_node: ExpressionId, right_precedence: u8) -> CompilerResult<ExpressionId> {
+    fn led_hook(
+        &mut self, 
+        token: &Token, 
+        left_node: ExpressionId, 
+        right_precedence: u8
+    ) -> CompilerResult<ExpressionId> {
         let token_span = token.span;
 
         let node = if let Some(op_type) = binary_operator_type(token) {
@@ -307,7 +353,7 @@ impl<'a> ExpressionParser<'a> {
             IndexNode::new(left_node, args).into()
 
         } else if *token == OpenParen {
-            let args = self.parse_optional_grouped_expression(token)?;
+            let args = self.function_arg_expressions(token)?;
             FunctionCallNode::new(left_node, args).into()
 
         } else if *token == Dot {
@@ -347,7 +393,10 @@ impl<'a> ExpressionParser<'a> {
         Ok(left_node_id)
     }
 
-    pub fn parse(token_stream: TokenStream<'a>, ast_arena: &'a mut AST) -> CompilerResult<ExpressionId> {
+    pub fn parse(
+        token_stream: TokenStream<'a>, 
+        ast_arena: &'a mut AST
+    ) -> CompilerResult<ExpressionId> {
         ExpressionParser::new(token_stream, ast_arena).parse_expression_rec(0)
     }
 }

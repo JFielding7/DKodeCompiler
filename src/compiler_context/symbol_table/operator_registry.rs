@@ -1,9 +1,11 @@
-use crate::semantic::type_synthesis::builtin_operator_registry::BuiltinOperatorRegistry;
 use std::collections::HashMap;
 use std::hash::Hash;
+use crate::compiler_context::symbol_table::builtin_operator_registry::BuiltinOperatorRegistry;
 use crate::compiler_context::type_arena::TypeArena;
 use crate::types::data_type::DataTypeId;
 
+// TODO: operator overloading
+#[derive(Debug)]
 pub struct OperatorRegistry<OpType: Eq + Hash + BuiltinOperatorRegistry> {
     implementations: HashMap<OpType, HashMap<OpType::Operands, DataTypeId>>
 }
