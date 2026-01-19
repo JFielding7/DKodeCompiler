@@ -16,7 +16,7 @@ use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
-use crate::semantic::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, UndefinedVariable};
+use crate::semantic::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, InvalidLValue, UndefinedVariable};
 use crate::source::source_span::SourceSpan;
 
 pub struct NameResolver<'ast, 'llvm_ctx> {
@@ -50,7 +50,9 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
             if let Variable(var) = &left_node.node_type {
                 self.ctx.symbol_table.insert_variable(var.name, left_node.span, self.curr_block_id);
             } else {
-                self.resolve_expression(op.left)?;
+                // TODO: later accept properties also
+                println!("{:?}", left_node.node_type);
+                return Err(InvalidLValue.at(left_node.span))
             }
         } else {
             self.resolve_expression(op.left)?;

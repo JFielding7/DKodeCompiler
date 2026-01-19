@@ -35,6 +35,9 @@ impl From<TokenizedLines> for SourceStatements {
             if legal_statement_end && line[Statement::INDEX_AFTER_INDENT].is_legal_statement_boundary() {
                 statements.push(Statement::new(curr_statement_tokens));
 
+                let last_token = line.last().expect("Line must have at least one token");
+                legal_statement_end = last_token.is_legal_statement_boundary();
+
                 curr_statement_tokens = line;
             } else {
                 let last_token = line.last().expect("Line must have at least one token");
@@ -52,6 +55,8 @@ impl From<TokenizedLines> for SourceStatements {
         if !curr_statement_tokens.is_empty() {
             statements.push(Statement::new(curr_statement_tokens));
         }
+
+        println!("{}", statements.len());
 
         Self::new(statements)
     }

@@ -53,7 +53,7 @@ impl Statement {
     
     pub fn full_span(&self) -> SourceSpan {
         let start_span = &self.token_after_indent().span;
-        SourceSpan::new(start_span.line_index, start_span.start, self.last_token().span.end)
+        SourceSpan::new(start_span.start, self.last_token().span.end)
     }
 }
 

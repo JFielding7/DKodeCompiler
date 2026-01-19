@@ -1,4 +1,4 @@
-use crate::source::source_span::SourceSpan;
+use crate::source::source_span::{SourceLocation, SourceSpan};
 use crate::lexer::token::TokenType::Identifier;
 use crate::lexer::token::{Token, TokenType};
 use std::iter::Peekable;
@@ -35,11 +35,12 @@ impl<'a> TokenStream<'a> {
         self.prev_token.span
     }
 
-    pub fn end_span(&mut self) -> SourceSpan {
-        let mut span = self.prev_span();
-        span.start = span.end;
-        span.end += 1;
-        span
+    pub fn after_prev_span(&mut self) -> SourceSpan {
+        let prev_span = self.prev_span();
+        let start = prev_span.end;
+        let end = prev_span.end.shift_right();
+        
+        SourceSpan::new(start, end)
     }
 
     pub fn split_curr_token(&mut self) {
@@ -56,7 +57,7 @@ impl<'a> TokenStream<'a> {
             None => Err(ExpectedToken {
                 expected,
                 actual: None
-            }.at(self.end_span())),
+            }.at(self.after_prev_span())),
 
             Some(token) => {
                 if *token == expected {

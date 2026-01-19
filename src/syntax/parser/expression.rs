@@ -1,4 +1,4 @@
-use crate::ast::access_node::{AccessNode, Member};
+use crate::ast::access_node::{AccessNode, Member, MemberType};
 use crate::ast::AST;
 use crate::ast::ast_node::{ExpressionId, Expression};
 use crate::ast::binary_operator_node::{BinaryOperatorNode};
@@ -15,6 +15,7 @@ use crate::operators::unary_operators::UnaryOperator;
 use crate::syntax::error::SyntaxError::{ExpressionExpected, InvalidExpression, UnmatchedGroupOpening};
 use crate::operators::precedence::OperatorPrecedenceGroup;
 use crate::operators::precedence::OperatorPrecedenceGroup::Prefix;
+use crate::source::source_span::{SourceLocation, SourceSpan};
 use crate::syntax::parser::token_stream::TokenStream;
 use crate::syntax::parser::type_annotation::parse_type_annotation;
 
@@ -164,6 +165,20 @@ fn close_token(open_token: &Token) -> TokenType {
     }
 }
 
+struct FunctionArgExpressions {
+    args: Vec<ExpressionId>,
+    end_location: SourceLocation,
+}
+
+impl FunctionArgExpressions {
+    fn new(args: Vec<ExpressionId>, end_location: SourceLocation) -> Self {
+        Self { 
+            args,
+            end_location 
+        }
+    }
+}
+
 pub struct ExpressionParser<'a> {
     token_stream: TokenStream<'a>,
     ast: &'a mut AST,
@@ -217,7 +232,7 @@ impl<'a> ExpressionParser<'a> {
 
     fn parse_optional_grouped_expression(
         &mut self, 
-        open_token: &Token
+        open_paren_token: &Token
     ) -> CompilerResult<Option<ExpressionId>> {
         let group = match self.token_stream.peek() {
             Some(&token) => {
@@ -227,24 +242,26 @@ impl<'a> ExpressionParser<'a> {
                     Some(self.parse_expression_rec(0)?)
                 }
             }
-            None => return Err(UnmatchedGroupOpening(open_token.token_type).at(open_token.span))
+            None => return Err(UnmatchedGroupOpening(open_paren_token.token_type).at(open_paren_token.span))
         };
 
-        self.assert_group_closed(open_token)?;
+        self.assert_group_closed(open_paren_token)?;
         Ok(group)
     }
 
     fn function_arg_expressions(
         &mut self,
-        token: &Token,
-    ) -> CompilerResult<Vec<ExpressionId>> {
-        let args = self.parse_optional_grouped_expression(token)?;
+        opening_paren_token: &Token,
+    ) -> CompilerResult<FunctionArgExpressions> {
+        let args_opt = self.parse_optional_grouped_expression(opening_paren_token)?;
         
         let mut function_args = Vec::new();
 
-        let mut curr_arg_id = match args {
+        let mut curr_arg_id = match args_opt {
             Some(args_id) => args_id,
-            None => return Ok(function_args),
+            None => {
+                return Ok(FunctionArgExpressions::new(function_args, opening_paren_token.span.end.shift_right()))
+            },
         };
 
         loop {
@@ -268,28 +285,30 @@ impl<'a> ExpressionParser<'a> {
                 }
             }
         }
-
-        Ok(function_args.into_iter().rev().collect())
+        
+        function_args = function_args.into_iter().rev().collect();
+        let end_location = self.ast.lookup_expression(
+            *function_args.last().expect("Function must have at least one argument here")
+        ).span.end;
+        
+        Ok(FunctionArgExpressions::new(function_args, end_location))
     }
 
     fn parse_accessed_member(&mut self) -> CompilerResult<Member> {
         let member_name = self.token_stream.expect_next_token(Identifier)?;
         let member_name_symbol = member_name.symbol;
+        let member_name_span = member_name.span;
 
         if self.token_stream.peek_matches(OpenParen) {
-            self.token_stream.next();
+            let open_paren_token = self.token_stream.next().unwrap();
 
-            let member = if self.token_stream.peek_matches(CloseParen) {
-                Ok(Member::method_no_args(member_name_symbol))
-            } else {
-                let args = self.parse_expression_rec(0)?;
-                Ok(Member::method_with_args(member_name_symbol, args))
-            };
-            self.token_stream.next();
-            member
+            let args = self.function_arg_expressions(open_paren_token)?;
+            let span = SourceSpan::new(member_name_span.start, args.end_location);
+
+            Ok(Member::method(member_name_symbol, args.args, span))
 
         } else {
-            Ok(Member::field(member_name_symbol))
+            Ok(Member::field(member_name_symbol, member_name_span))
         }
     }
 
@@ -321,7 +340,7 @@ impl<'a> ExpressionParser<'a> {
     fn nud_hook(&mut self) -> CompilerResult<ExpressionId> {
 
         match self.token_stream.next() {
-            None => Err(ExpressionExpected.at(self.token_stream.end_span())),
+            None => Err(ExpressionExpected.at(self.token_stream.after_prev_span())),
 
             Some(token) => {
                 if let Some(unary_op_type) = prefix_unary_operator_type(token) {
@@ -346,10 +365,11 @@ impl<'a> ExpressionParser<'a> {
         left_node: ExpressionId, 
         right_precedence: u8
     ) -> CompilerResult<ExpressionId> {
-        let token_span = token.span;
+        let mut span_end = token.span.end;
 
         let node = if let Some(op_type) = binary_operator_type(token) {
             let right_node = self.parse_expression_rec(right_precedence)?;
+            span_end = self.ast.lookup_expression(right_node).span.end;
             BinaryOperatorNode::new(op_type, left_node, right_node).into()
 
         } else if let Some(op_type) = postfix_unary_operator_type(token) {
@@ -357,21 +377,27 @@ impl<'a> ExpressionParser<'a> {
 
         } else if *token == OpenBracket {
             let args = self.parse_required_grouped_expression(token)?;
+            span_end = self.ast.lookup_expression(args).span.end;
             IndexNode::new(left_node, args).into()
 
         } else if *token == OpenParen {
             let args = self.function_arg_expressions(token)?;
-            FunctionCallNode::new(left_node, args).into()
+            span_end = args.end_location;
+            FunctionCallNode::new(left_node, args.args).into()
 
         } else if *token == Dot {
             let member = self.parse_accessed_member()?;
+            span_end = member.span.end;
             AccessNode::new(left_node, member).into()
 
         } else {
             unreachable!("Led hook not implemented");
         };
 
-        Ok(self.ast.add_expression(node, token_span))
+        let span_start = self.ast.lookup_expression(left_node).span.start;
+        let span = SourceSpan::new(span_start, span_end);
+
+        Ok(self.ast.add_expression(node, span))
     }
 
     fn parse_expression_rec(&mut self, curr_precedence: u8) -> CompilerResult<ExpressionId> {

@@ -7,8 +7,8 @@ use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::IfNode;
 use crate::ast::unary_operator_node::UnaryOperatorNode;
 use crate::ast::variable_node::VariableNode;
-use crate::code_gen::value::Value::RValue;
 use crate::code_gen::value::Value;
+use crate::code_gen::value::Value::RValue;
 use crate::compiler_context::symbol_table::symbol::SymbolId;
 use crate::compiler_context::CompilerContext;
 use crate::operators::binary_operators::BinaryOperator;
@@ -19,7 +19,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, ValueKind};
+use inkwell::values::{BasicMetadataValueEnum, FunctionValue, PointerValue, ValueKind};
 use std::collections::HashMap;
 use string_interner::DefaultSymbol;
 
@@ -38,13 +38,11 @@ impl<'ast, 'llvm_ctx> CodeGenerator<'ast, 'llvm_ctx> {
     pub fn new(
         annotated_ast: &'ast AnnotatedAST,
         llvm_context: &'llvm_ctx Context,
+        module: Module<'llvm_ctx>,
+        curr_function: FunctionValue<'llvm_ctx>,
         compiler_context: &'llvm_ctx CompilerContext
     ) -> Self {
-        let module = llvm_context.create_module("code");
         let builder = llvm_context.create_builder();
-        let i32_type = llvm_context.i32_type();
-        let fn_type = i32_type.fn_type(&[], false);
-        let main_fn = module.add_function("main", fn_type, None);
 
         Self {
             llvm_context,
@@ -53,7 +51,7 @@ impl<'ast, 'llvm_ctx> CodeGenerator<'ast, 'llvm_ctx> {
             compiler_context,
             annotated_ast,
             curr_block_id: annotated_ast.ast.global_block_id,
-            curr_function: main_fn,
+            curr_function,
             pointer_map: HashMap::new(),
         }
     }
@@ -349,7 +347,7 @@ impl<'ast, 'llvm_ctx> CodeGenerator<'ast, 'llvm_ctx> {
         }
     }
 
-    
+    // Builder cursor at end of the last child block, or this one if no children when finished
     fn emit_block(&mut self, block_id: BlockId) -> BasicBlock<'llvm_ctx> {
         let parent_block_id = self.curr_block_id;
         self.curr_block_id = block_id;
@@ -375,8 +373,12 @@ impl<'ast, 'llvm_ctx> CodeGenerator<'ast, 'llvm_ctx> {
         llvm_context: &'llvm_ctx Context,
         compiler_context: &'llvm_ctx CompilerContext
     ) {
-        let mut generator = Self::new(annotated_ast, llvm_context, compiler_context);
+        let module = llvm_context.create_module("DKode");
+        let i32_type = llvm_context.i32_type();
+        let main_fn_type = i32_type.fn_type(&[], false);
+        let main_fn = module.add_function("main", main_fn_type, None);
 
+        let mut generator = Self::new(annotated_ast, llvm_context, module, main_fn, compiler_context);
         generator.emit_block(generator.annotated_ast.ast.global_block_id);
         generator.builder.build_return(Some(&generator.llvm_context.i32_type().const_zero())).unwrap();
 

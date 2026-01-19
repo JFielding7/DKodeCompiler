@@ -36,6 +36,8 @@ pub enum SemanticError {
         expected: DataTypeId,
         actual: DataTypeId,
     },
+    
+    InvalidLValue,
 
     UndefinedType,
 
@@ -94,6 +96,9 @@ impl SpannableError for SemanticError {
                         type_arena.format_type(*expected, string_interner),
                         type_arena.format_type(*actual, string_interner)
                 )
+            }
+            InvalidLValue => {
+                "Error: Value is not assignable".to_string()
             }
             UndefinedType => {
                 "Error: Undefined type".to_string()

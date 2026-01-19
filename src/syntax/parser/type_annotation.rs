@@ -37,19 +37,16 @@ pub fn parse_type_annotation(token_stream: &mut TokenStream) -> CompilerResult<T
     let type_name = type_token.symbol;
     
     let type_token_span = type_token.span;
-    let type_span_start = type_token_span.start;
-    let type_span_line_index = type_token_span.line_index;
 
     if token_stream.peek_matches(Less) {
         token_stream.next();
         let inner_types = parse_inner_types(token_stream)?;
         assert_type_params_closed(token_stream)?;
         
-        let type_span = SourceSpan::new(type_span_line_index, type_span_start, token_stream.prev_span().end);
+        let type_span = SourceSpan::new(type_token_span.start, token_stream.prev_span().end);
         Ok(TypeAnnotation::with_params(type_name, inner_types, type_span))
         
-    } else {
-        let type_span = SourceSpan::new(type_span_line_index, type_span_start, token_stream.prev_span().end);
-        Ok(TypeAnnotation::new(type_name, type_span))
+    } else { ;
+        Ok(TypeAnnotation::new(type_name, type_token_span))
     }
 }

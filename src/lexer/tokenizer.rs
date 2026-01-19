@@ -18,7 +18,7 @@ fn get_indent_token(
     let indent = ctx.string_interner.get_intern_symbol(indent_chars.as_str());
 
     let indent_spaces = indent_chars.len();
-    let span = SourceSpan::new(line_index, 0, indent_spaces);
+    let span = SourceSpan::single_line(line_index, 0, indent_spaces);
 
     if (indent_spaces % INDENT_SIZE) != 0 {
         Err(UnalignedIndent(indent_spaces).at(span))
@@ -42,7 +42,7 @@ pub fn tokenize_line(
     while let Some(next_token) = lexer.next() {
         let span = lexer.span();
         let slice = lexer.slice();
-        let source_span = SourceSpan::new(line_index, span.start, span.end);
+        let source_span = SourceSpan::single_line(line_index, span.start, span.end);
 
         let token_type = next_token.map_err(|_|
             InvalidToken(
