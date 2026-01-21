@@ -2,6 +2,9 @@ use crate::compiler_context::global_string_interner::GlobalStringInterner;
 use crate::types::builtin_type::BuiltinType;
 use crate::types::data_type::{DataType, DataTypeId};
 use std::collections::HashMap;
+use std::iter::Map;
+use std::ops::Range;
+use std::vec::IntoIter;
 use string_interner::DefaultSymbol;
 use strum::IntoEnumIterator;
 
@@ -21,7 +24,7 @@ impl TypeArena {
         }
     }
 
-    pub fn add_type(&mut self, data_type: DataType) -> DataTypeId {
+    fn add_type(&mut self, data_type: DataType) -> DataTypeId {
         let id = self.data_types.len();
         self.data_types.push(data_type);
         DataTypeId(id)
@@ -71,5 +74,14 @@ impl TypeArena {
                 )
             }
         }
+    }
+}
+
+impl IntoIterator for &TypeArena {
+    type Item = DataTypeId;
+    type IntoIter = Map<Range<usize>, fn(usize) -> DataTypeId>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (0..self.data_types.len()).map(DataTypeId)
     }
 }

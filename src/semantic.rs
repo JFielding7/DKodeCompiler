@@ -25,7 +25,7 @@ impl AnnotatedAST {
         }
     }
     
-    pub fn expr_data_type(&self, expr_id: ExpressionId) -> DataTypeId {
+    pub fn expr_data_type_id(&self, expr_id: ExpressionId) -> DataTypeId {
         self.ast_expr_data_types[expr_id.as_usize()]
     }
 }

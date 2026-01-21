@@ -21,6 +21,10 @@ impl Symbol {
             data_type_id: None,
         }
     }
+
+    pub fn data_type_id(&self) -> DataTypeId {
+        self.data_type_id.expect("Symbol must have data type")
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
