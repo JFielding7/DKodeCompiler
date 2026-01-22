@@ -5,3 +5,4 @@ mod expression;
 mod token_stream;
 pub mod ast_parser;
 mod type_annotation;
+mod class_def;

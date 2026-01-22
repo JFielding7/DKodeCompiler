@@ -24,20 +24,28 @@ impl TypeArena {
         }
     }
 
-    fn add_type(&mut self, data_type: DataType) -> DataTypeId {
+    fn add_new_type(&mut self, data_type: DataType) -> DataTypeId {
         let id = self.data_types.len();
         self.data_types.push(data_type);
         DataTypeId(id)
     }
+    
+    pub fn insert_new_type(&mut self, data_type: DataType) -> Option<DataTypeId> {
+        if self.data_types.contains(&data_type) {
+            None
+        } else {
+            Some(self.add_new_type(data_type))
+        }
+    }
 
-    pub fn add_if_new_type(&mut self, data_type: DataType) -> DataTypeId {
-        for (i, t) in self.data_types.iter().enumerate() {
-            if *t == data_type {
+    pub fn get_or_insert_type(&mut self, data_type: DataType) -> DataTypeId {
+        for (i, curr_data_type) in self.data_types.iter().enumerate() {
+            if *curr_data_type == data_type {
                 return DataTypeId(i)
             }
         }
 
-        self.add_type(data_type)
+        self.add_new_type(data_type)
     }
 
     pub fn get_data_type(&self, id: DataTypeId) -> &DataType {

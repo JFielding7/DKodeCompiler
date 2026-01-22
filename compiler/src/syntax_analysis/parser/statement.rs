@@ -6,7 +6,7 @@ use std::vec::IntoIter;
 
 #[derive(Debug)]
 pub struct Statement {
-    pub indent_size: usize,
+    pub indent_size: isize,
     pub tokens: Vec<Token>,
 }
 
@@ -20,7 +20,7 @@ impl Statement {
         }
     }
 
-    fn extract_indent_size(tokens: &Vec<Token>) -> usize {
+    fn extract_indent_size(tokens: &Vec<Token>) -> isize {
         let first_token = tokens
             .first()
             .expect("Statement must have at least one token");

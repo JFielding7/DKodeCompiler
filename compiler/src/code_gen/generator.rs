@@ -1,4 +1,4 @@
-use crate::ast::ast_node::Item::FunctionDef;
+use crate::ast::ast_node::Item::{ClassDef, FunctionDef};
 use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, StatementId};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::block::BlockId;
@@ -11,7 +11,7 @@ use crate::code_gen::types::LLVMDataTypeEnum::Function;
 use crate::code_gen::types::{LLVMDataType, LLVMDataTypeEnum};
 use crate::code_gen::value::Value;
 use crate::code_gen::value::Value::{RValue, Void};
-use crate::compiler_context::symbol_table::symbol::SymbolId;
+use crate::compiler_context::symbol_table::symbol::{SymbolId, SymbolType};
 use crate::compiler_context::CompilerContext;
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
@@ -27,6 +27,7 @@ use inkwell::values::{BasicMetadataValueEnum, FunctionValue, PointerValue, Value
 use inkwell::AddressSpace;
 use std::collections::HashMap;
 use string_interner::DefaultSymbol;
+use crate::compiler_context::symbol_table::symbol::SymbolType::FunctionParam;
 use crate::types::builtin_type::BuiltinType::Str;
 
 pub struct CodeGenerator<'llvm_ctx> {
@@ -182,8 +183,8 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
         let llvm_type: BasicTypeEnum = data_type.into();
 
         let ptr_val = *self.pointer_map.entry(symbol.id).or_insert_with(|| {
-            match symbol.func_param_index {
-                Some(index) => {
+            match symbol.symbol_type {
+                FunctionParam(index) => {
                     let param = self.curr_function
                         .get_nth_param(index as u32)
                         .unwrap();
@@ -197,11 +198,14 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
 
                     ptr_val
                 }
-                None => {
+                SymbolType::Variable => {
                     self.builder.build_alloca(
                         llvm_type,
                         self.compiler_context.string_interner.get_str(var_node.name)
                     ).unwrap()
+                }
+                SymbolType::ClassField(_) => {
+                    unimplemented!("ClassField is not implemented")
                 }
             }
         });
@@ -458,6 +462,9 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
             match &item.node_type {
                 FunctionDef(func_def_node) => {
                     self.emit_function(func_def_node);
+                }
+                ClassDef(class_def_node) => {
+                    unimplemented!("Classes")
                 }
             }
         }

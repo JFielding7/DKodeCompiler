@@ -3,12 +3,14 @@ mod builtin_operator_registry;
 pub mod symbol;
 pub mod scope;
 
+use inkwell::types::AnyTypeEnum::FunctionType;
 use scope::Scope;
 use symbol::Symbol;
 use string_interner::DefaultSymbol;
 use crate::ast::block::BlockId;
 use crate::compiler_context::symbol_table::operator_registry::OperatorRegistry;
-use crate::compiler_context::symbol_table::symbol::SymbolId;
+use crate::compiler_context::symbol_table::symbol::{SymbolId, SymbolType};
+use crate::compiler_context::symbol_table::symbol::SymbolType::{ClassField, FunctionParam, Variable};
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
 use crate::source::source_span::SourceSpan;
@@ -77,22 +79,47 @@ impl SymbolTable {
     pub fn scope_function_name(&self, block_id: BlockId) -> Option<DefaultSymbol> {
         self.scopes[block_id.as_usize()].function
     }
-    
-    fn insert_symbol(&mut self, symbol: Symbol, block_id: BlockId) -> bool {
+    pub fn insert_symbol(
+        &mut self,
+        name: DefaultSymbol,
+        symbol_type: SymbolType,
+        def_span: SourceSpan,
+        block_id: BlockId,
+    ) -> bool {
+        let symbol = Symbol::new(SymbolId::new(self.id_counter), name, symbol_type, def_span);
+        
         self.id_counter += 1;
         self.scopes[block_id.as_usize()].insert(symbol)
     }
 
-    pub fn insert_variable(&mut self, name: DefaultSymbol, def_span: SourceSpan, block_id: BlockId) -> bool {
-        let symbol = Symbol::new(SymbolId::new(self.id_counter), name, None, def_span);
-        self.insert_symbol(symbol, block_id)
+    pub fn insert_variable(
+        &mut self, 
+        name: DefaultSymbol, 
+        def_span: SourceSpan, 
+        block_id: BlockId
+    ) -> bool {
+        self.insert_symbol(name, Variable, def_span, block_id)
     }
     
-    pub fn insert_function_param(&mut self, name: DefaultSymbol, param_index: usize, def_span: SourceSpan, block_id: BlockId) -> bool {
-        let symbol = Symbol::new(SymbolId::new(self.id_counter), name, Some(param_index), def_span);
-        self.insert_symbol(symbol, block_id)
+    pub fn insert_function_param(
+        &mut self, 
+        name: DefaultSymbol, 
+        param_index: usize, 
+        def_span: SourceSpan, 
+        block_id: BlockId
+    ) -> bool {
+        self.insert_symbol(name, FunctionParam(param_index), def_span, block_id)
     }
-    
+
+    pub fn insert_class_field(
+        &mut self, 
+        name: DefaultSymbol, 
+        param_index: usize, 
+        def_span: SourceSpan, 
+        block_id: BlockId
+    ) -> bool {
+        self.insert_symbol(name, ClassField(param_index), def_span, block_id)
+    }
     
     pub fn assign_type(&mut self, data_type_id: DataTypeId, name: DefaultSymbol, block_id: BlockId) {
         let mut curr_scope = Some(block_id);

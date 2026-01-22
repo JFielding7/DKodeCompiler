@@ -2,9 +2,10 @@ use crate::ast::access_node::AccessNode;
 use crate::ast::AST;
 use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, StatementId};
 use crate::ast::ast_node::Expression::Variable;
-use crate::ast::ast_node::Item::FunctionDef;
+use crate::ast::ast_node::Item::{ClassDef, FunctionDef};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::block::BlockId;
+use crate::ast::class_def_node::ClassDefNode;
 use crate::ast::for_node::ForNode;
 use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::function_def_node::FunctionDefNode;
@@ -80,7 +81,7 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
     }
 
     fn resolve_access(&mut self, access: &AccessNode) -> CompilerResult<()> {
-        // self.resolve_statement_names(access.receiver)?;
+        self.resolve_expression(access.receiver)?;
 
         unimplemented!("property access");
     }
@@ -140,7 +141,9 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
             Index(index_node) => {
                 self.resolve_index(index_node)?;
             }
-            Access(_) => {}
+            Access(access_node) => {
+                self.resolve_access(access_node)?;
+            }
         })
     }
     
@@ -195,6 +198,9 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
                 FunctionDef(func_def_node) => {
                     self.resolve_block(func_def_node.body_id)?;
                 }
+                ClassDef(class_def_node) => {
+                    self.resolve_block(class_def_node.body_id)?;
+                }
             }
         }
 
@@ -209,12 +215,32 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
         }
 
         for (i, param) in func_def_node.params.iter().enumerate() {
-            if !self.ctx.symbol_table.insert_function_param(
+            let inserted = self.ctx.symbol_table.insert_function_param(
                 param.name, i, param.span, func_def_node.body_id
-            ) {
+            );
+
+            if !inserted {
                 return Err(DuplicateParameterName(param.name).at(param.span));
             }
         }
+
+        Ok(())
+    }
+
+    fn resolve_class_def(&mut self, class_def_node: &ClassDefNode) -> CompilerResult<()> {
+
+        for (i, field) in class_def_node.fields.iter().enumerate() {
+            let inserted = self.ctx.symbol_table.insert_class_field(
+                field.name, i, field.span, class_def_node.body_id
+            );
+
+            if !inserted {
+                return Err(DuplicateParameterName(field.name).at(field.span));
+            }
+        }
+
+        let class_body = self.ast.lookup_block(class_def_node.body_id);
+        self.resolve_items(&class_body.items)?;
 
         Ok(())
     }
@@ -226,6 +252,9 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
             match &item.node_type {
                 FunctionDef(func_def_node) => {
                     self.resolve_function_signature(func_def_node, item.span)?;
+                }
+                ClassDef(class_def_node) => {
+                    self.resolve_class_def(class_def_node)?;
                 }
             }
         }

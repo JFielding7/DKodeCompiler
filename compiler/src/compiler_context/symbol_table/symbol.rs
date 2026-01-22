@@ -7,17 +7,22 @@ pub struct Symbol {
     pub id: SymbolId,
     pub name: DefaultSymbol,
     pub data_type_id: Option<DataTypeId>,
-    pub func_param_index: Option<usize>,
+    pub symbol_type: SymbolType,
     def_span: SourceSpan,
 }
 
 impl Symbol {
-    pub fn new(id: SymbolId, name: DefaultSymbol, func_param_index: Option<usize>, def_span: SourceSpan) -> Self {
+    pub fn new(
+        id: SymbolId, 
+        name: DefaultSymbol, 
+        symbol_type: SymbolType, 
+        def_span: SourceSpan
+    ) -> Self {
         Self {
             id,
             name,
             def_span,
-            func_param_index,
+            symbol_type,
             data_type_id: None,
         }
     }
@@ -25,6 +30,13 @@ impl Symbol {
     pub fn data_type_id(&self) -> DataTypeId {
         self.data_type_id.expect("Symbol must have data type")
     }
+}
+
+#[derive(Debug)]
+pub enum SymbolType {
+    Variable,
+    FunctionParam(usize),
+    ClassField(usize),
 }
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]

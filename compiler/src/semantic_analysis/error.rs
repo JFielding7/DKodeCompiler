@@ -40,6 +40,8 @@ pub enum SemanticError {
     InvalidLValue,
 
     UndefinedType,
+    
+    DuplicateType(DefaultSymbol),
 
     TypeInference,
 }
@@ -102,7 +104,12 @@ impl SpannableError for SemanticError {
             }
             UndefinedType => {
                 "Error: Undefined type".to_string()
-            },
+            }
+            DuplicateType(type_name) => {
+                format!("Error: Duplicate function definition: {}", 
+                        string_interner.get_str(*type_name)
+                )
+            }
             TypeInference => {
                 "Error: Cannot infer type".to_string()
             },

@@ -19,6 +19,9 @@ pub enum TokenType {
     Fn,
     #[token("return")]
     Return,
+    
+    #[token("class")]
+    Class,
 
     #[token("if")]
     If,
@@ -139,7 +142,7 @@ pub enum TokenType {
     #[regex(r"//.*", logos::skip, allow_greedy = true)]
     Comment,
 
-    Indent(usize),
+    Indent(isize),
 }
 
 impl Token {

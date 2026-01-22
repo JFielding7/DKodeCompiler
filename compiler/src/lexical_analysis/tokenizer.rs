@@ -24,7 +24,7 @@ fn get_indent_token(
         Err(UnalignedIndent(indent_spaces).at(span))
     } else {
         Ok(Token::new(
-            Indent(indent_spaces / INDENT_SIZE),
+            Indent((indent_spaces / INDENT_SIZE) as isize),
             indent,
             span
         ))

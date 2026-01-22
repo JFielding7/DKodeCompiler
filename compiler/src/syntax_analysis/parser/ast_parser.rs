@@ -1,24 +1,26 @@
-use string_interner::DefaultSymbol;
+use crate::ast::ast_node::Statement::{ExpressionStatement, ReturnStatement};
 use crate::ast::ast_node::{ItemId, StatementId};
 use crate::ast::block::BlockId;
+use crate::ast::class_def_node::ClassDefNode;
 use crate::ast::for_node::{ForNode, ForVariable};
 use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::{ConditionBlock, IfNode};
 use crate::ast::while_node::WhileNode;
 use crate::ast::AST;
+use crate::compiler_context::symbol_table::scope::Scope;
+use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::lexical_analysis::token::TokenType;
 use crate::lexical_analysis::token::TokenType::*;
 use crate::syntax_analysis::error::SyntaxError::IndentTooLarge;
+use crate::syntax_analysis::parser::class_def::{parse_class_name, parse_field};
 use crate::syntax_analysis::parser::expression::ExpressionParser;
 use crate::syntax_analysis::parser::function_signature::{parse_function_name, parse_parameters, parse_return_type};
 use crate::syntax_analysis::parser::source_statements::{SourceStatements, SourceStatementsIter};
 use crate::syntax_analysis::parser::statement::Statement;
-use crate::ast::ast_node::Statement::{ExpressionStatement, ReturnStatement};
-use crate::compiler_context::CompilerContext;
-use crate::compiler_context::symbol_table::scope::Scope;
 use crate::syntax_analysis::parser::token_stream::TokenStream;
+use string_interner::DefaultSymbol;
 
 pub struct ASTParser<'llvm_ctx> {
     pub ast: AST,
@@ -36,6 +38,22 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
             curr_block_id: None,
             curr_function_name: None,
             ctx,
+        }
+    }
+
+    fn next_child_statement(&mut self, parent_indent_size: isize) -> CompilerResult<Option<Statement>> {
+        if let Some(child) = self.statements_iter.peek() {
+            let child_indent_size = child.indent_size;
+
+            if child_indent_size <= parent_indent_size {
+                Ok(None)
+            } else if child_indent_size > parent_indent_size + 1 {
+                Err(IndentTooLarge.at(child.indent_token().span))
+            } else {
+                Ok(Some(self.statements_iter.next().unwrap()))
+            }
+        } else {
+            Ok(None)
         }
     }
 
@@ -58,7 +76,7 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
         let params = parse_parameters(&mut token_stream)?;
         let return_type = parse_return_type(&mut token_stream)?;
 
-        let body = self.parse_block(func_def_statement.indent_size + 1)?;
+        let body = self.parse_block(func_def_statement.indent_size)?;
         
         let span = func_def_statement.full_span();
 
@@ -71,6 +89,48 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
         Ok(self.ast.add_item(func_def_node, span))
     }
 
+    fn parse_class_def(&mut self, class_def_statement: Statement) -> CompilerResult<ItemId> {
+        const TOKENS_BEFORE_NAME: usize = 2;
+
+        let token_stream = TokenStream::new(&class_def_statement, TOKENS_BEFORE_NAME);
+        let class_type = parse_class_name(token_stream)?;
+
+        let indent_size = class_def_statement.indent_size;
+
+        let mut fields = Vec::new();
+
+        let block_id = self.ast.create_block();
+        let block_scope = Scope::new(self.curr_block_id, self.curr_function_name);
+
+        self.ctx.symbol_table.add_scope(block_scope);
+
+        let parent_block_id = self.curr_block_id;
+        self.curr_block_id = Some(block_id);
+
+        while let Some(child) = self.next_child_statement(indent_size)? {
+            match child.token_after_indent_type() {
+                Fn => {
+                    let func_def = self.parse_function_def(child)?;
+                    self.ast.lookup_block_mut(block_id).add_item(func_def)
+                },
+                Class => {
+                    let class_def = self.parse_class_def(child)?;
+                    self.ast.lookup_block_mut(block_id).add_item(class_def)
+                },
+                _ => {
+                    let token_stream = TokenStream::new(&child, Statement::INDEX_AFTER_INDENT);
+                    fields.push(parse_field(token_stream)?)
+                }
+            }
+        }
+
+        self.curr_block_id = parent_block_id;
+
+        let class_node = ClassDefNode::new(class_type, fields, block_id).into();
+
+        Ok(self.ast.add_item(class_node, class_def_statement.full_span()))
+    }
+
     fn parse_if_statement(&mut self, if_statement: Statement) -> CompilerResult<StatementId> {
         const TOKENS_BEFORE_COND: usize = 2;
 
@@ -79,7 +139,7 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
             &mut self.ast,
         )?;
         
-        let if_body = self.parse_block(if_statement.indent_size + 1)?;
+        let if_body = self.parse_block(if_statement.indent_size)?;
 
         let mut condition_blocks = vec![ConditionBlock::new(if_cond, if_body)];
 
@@ -93,7 +153,7 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
                 &mut self.ast,
             )?;
             
-            let elif_body = self.parse_block(elif_statement.indent_size + 1)?;
+            let elif_body = self.parse_block(elif_statement.indent_size)?;
 
             condition_blocks.push(ConditionBlock::new(elif_cond, elif_body));
         }
@@ -103,7 +163,7 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
                 .next()
                 .expect("Statement Expected");
 
-            Some(self.parse_block(else_statement.indent_size + 1)?)
+            Some(self.parse_block(else_statement.indent_size)?)
         } else {
             None
         };
@@ -121,7 +181,7 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
             &mut self.ast,
         )?;
 
-        let while_body = self.parse_block(while_statement.indent_size + 1)?;
+        let while_body = self.parse_block(while_statement.indent_size)?;
 
         let while_node = WhileNode::new(while_cond, while_body).into();
 
@@ -142,7 +202,7 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
             &mut self.ast,
         )?;
         
-        let for_body = self.parse_block(for_statement.indent_size + 1)?;
+        let for_body = self.parse_block(for_statement.indent_size)?;
 
         let for_node = ForNode::new(item_var, iterator, for_body).into();
 
@@ -175,16 +235,15 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
         Ok(self.ast.add_statement(statement, expr_statement.full_span()))
     }
 
-    fn parse_next_statement_ast_node(&mut self, statement: Statement, expected_indent_size: usize) -> CompilerResult<BlockChildNodeId> {
+    fn parse_next_statement_ast_node(
+        &mut self,
+        statement: Statement,
+    ) -> CompilerResult<BlockChildNodeId> {
         use BlockChildNodeId::*;
-
-        if statement.indent_size > expected_indent_size {
-            return Err(IndentTooLarge.at(statement.indent_token().span))
-        }
 
         Ok(match statement.token_after_indent_type() {
             Fn => Item(self.parse_function_def(statement)?),
-
+            Class => Item(self.parse_class_def(statement)?),
             If => Statement(self.parse_if_statement(statement)?),
             While => Statement(self.parse_while_loop(statement)?),
             For => Statement(self.parse_for_loop(statement)?),
@@ -193,7 +252,7 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
         })
     }
 
-    fn parse_block(&mut self, indent_size: usize) -> CompilerResult<BlockId> {
+    fn parse_block(&mut self, indent_size: isize) -> CompilerResult<BlockId> {
         use BlockChildNodeId::*;
 
         let block_id = self.ast.create_block();
@@ -204,13 +263,9 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
         let parent_block_id = self.curr_block_id;
         self.curr_block_id = Some(block_id);
 
-        while let Some(child) =self.statements_iter.peek() {
-            if child.indent_size < indent_size {
-                break;
-            }
+        while let Some(child) =self.next_child_statement(indent_size)? {
 
-            let child = self.statements_iter.next().expect("Statement Expected");
-            match self.parse_next_statement_ast_node(child, indent_size)? {
+            match self.parse_next_statement_ast_node(child)? {
                 Item(item_id) => {
                     self.ast.lookup_block_mut(block_id).add_item(item_id)
                 },
@@ -226,9 +281,9 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
     }
     
     pub fn parse_global_nodes(&mut self) -> CompilerResult<()> {
-        const GLOBAL_INDENT_SIZE: usize = 0;
+        const GLOBAL_PARENT_INDENT_SIZE: isize = -1;
 
-        self.ast.global_block_id = self.parse_block(GLOBAL_INDENT_SIZE)?;
+        self.ast.global_block_id = self.parse_block(GLOBAL_PARENT_INDENT_SIZE)?;
 
         Ok(())
     }

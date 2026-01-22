@@ -13,6 +13,7 @@ use string_interner::DefaultSymbol;
 use Expression::*;
 use Item::*;
 use Statement::*;
+use crate::ast::class_def_node::ClassDefNode;
 
 #[derive(Debug)]
 pub struct ASTNode<T> {
@@ -32,7 +33,8 @@ impl<T> ASTNode<T> {
 #[derive(Debug)]
 pub enum Item {
     FunctionDef(FunctionDefNode),
-    // TODO: Classes
+    
+    ClassDef(ClassDefNode),
 }
 
 #[derive(Debug)]
@@ -158,5 +160,6 @@ macro_rules! impl_to_item {
 }
 
 impl_to_item! {
-    FunctionDefNode => FunctionDef
+    FunctionDefNode => FunctionDef,
+    ClassDefNode => ClassDef
 }

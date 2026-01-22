@@ -1,7 +1,9 @@
-use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, StatementId};
+use std::iter::Map;
+use std::slice::Iter;
+use crate::ast::ast_node::{Expression, ExpressionId, Item, ItemId, Statement, StatementId};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::function_call_node::FunctionCallNode;
-use crate::ast::function_def_node::FunctionDefNode;
+use crate::ast::function_def_node::{FunctionDefNode, Parameter};
 use crate::ast::AST;
 use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
@@ -14,11 +16,13 @@ use crate::types::builtin_type::BuiltinType::{Int, Str, Unit};
 use crate::types::data_type::{DataType, DataTypeId};
 use string_interner::DefaultSymbol;
 use crate::ast::ast_node::Expression::Variable;
-use crate::ast::ast_node::Item::FunctionDef;
+use crate::ast::ast_node::Item::{ClassDef, FunctionDef};
 use crate::ast::block::BlockId;
+use crate::ast::class_def_node::ClassDefNode;
 use crate::ast::for_node::ForNode;
 use crate::ast::if_node::IfNode;
 use crate::ast::while_node::WhileNode;
+use crate::types::data_type::DataType::UserDefined;
 
 pub struct TypeSynthesizer<'ast, 'llvm_ctx> {
     ast: &'ast AST,
@@ -373,11 +377,33 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         for &node_id in items {
             let node = self.ast.lookup_item(node_id);
 
-            let FunctionDef(func_def_node) = &node.node_type;
-            self.compute_block_types(func_def_node.body_id)?;
+            match &node.node_type {
+                FunctionDef(func_def_node) => {
+                    self.compute_block_types(func_def_node.body_id)?;
+                }
+                ClassDef(class_def_node) => {
+                    self.compute_block_types(class_def_node.body_id)?;
+                }
+            }
         }
 
         Ok(())
+    }
+
+    fn var_list_type_ids(&mut self, vars: &Vec<Parameter>, block_id: BlockId) -> CompilerResult<Vec<DataTypeId>> {
+        vars
+            .iter()
+            .map(|var| {
+                // TODO: generics
+                let type_id = self.ctx.type_arena
+                    .get_type_id(var.type_annotation.type_name, &self.ctx.string_interner)
+                    .ok_or_else(|| UndefinedType.at(var.span))?;
+
+                self.ctx.symbol_table.assign_type(type_id, var.name, block_id);
+
+                Ok(type_id)
+            })
+            .collect()
     }
 
     fn compute_function_param_types(
@@ -385,20 +411,7 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         func_def_node: &FunctionDefNode,
     ) -> CompilerResult<Vec<DataTypeId>> {
 
-        let mut param_types = Vec::new();
-
-        for param in &func_def_node.params {
-            // TODO: generics
-            let type_id = self.ctx.type_arena
-                .get_type_id(param.type_annotation.type_name, &self.ctx.string_interner)
-                .ok_or_else(|| UndefinedType.at(param.span))?;
-
-            self.ctx.symbol_table.assign_type(type_id, param.name, func_def_node.body_id);
-
-            param_types.push(type_id);
-        }
-
-        Ok(param_types)
+        self.var_list_type_ids(&func_def_node.params, func_def_node.body_id)
     }
 
     fn compute_function_return_type(
@@ -430,7 +443,7 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
 
         let function_type = DataType::function(param_types, return_type);
 
-        let function_type_id = self.ctx.type_arena.add_if_new_type(function_type);
+        let function_type_id = self.ctx.type_arena.get_or_insert_type(function_type);
 
         self.ctx.symbol_table.assign_type(
             function_type_id, func_def_node.name, self.curr_block_id
@@ -439,12 +452,32 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         Ok(())
     }
 
+    fn compute_class_def_types(&mut self, class_def_node: &ClassDefNode) -> CompilerResult<()> {
+        // TODO: Generics
+        let type_name = class_def_node.class_type.type_name;
+        let class_type = UserDefined(class_def_node.class_type.type_name);
+
+        if self.ctx.type_arena.insert_new_type(class_type).is_none() {
+            return Err(DuplicateType(type_name).at(class_def_node.class_type.span));
+        }
+
+        self.var_list_type_ids(&class_def_node.fields, class_def_node.body_id)?;
+
+        Ok(())
+    }
+
     fn compute_item_types(&mut self, items: &Vec<ItemId>) -> CompilerResult<()> {
         for &node_id in items {
             let node = self.ast.lookup_item(node_id);
 
-            let FunctionDef(func_def_node) = &node.node_type;
-            self.compute_function_signature_types(func_def_node)?;
+            match &node.node_type {
+                FunctionDef(func_def_node) => {
+                    self.compute_function_signature_types(func_def_node)?;
+                }
+                ClassDef(class_def_node) => {
+                    self.compute_class_def_types(class_def_node)?;
+                }
+            }
         }
 
         Ok(())

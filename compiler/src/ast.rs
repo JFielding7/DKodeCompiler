@@ -14,6 +14,7 @@ pub mod while_node;
 pub mod for_node;
 pub mod variable_node;
 pub mod block;
+pub mod class_def_node;
 
 #[derive(Debug)]
 pub struct AST {
