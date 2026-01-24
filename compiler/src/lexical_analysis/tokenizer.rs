@@ -1,4 +1,3 @@
-use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::SpannableError;
 use crate::lexical_analysis::error::LexerError::{InvalidToken, UnalignedIndent};
 use crate::lexical_analysis::token::TokenType::Indent;
@@ -6,6 +5,7 @@ use crate::lexical_analysis::token::{Token, TokenType, INDENT_SIZE};
 use crate::source::source_span::SourceSpan;
 use crate::error::compiler_error::CompilerResult;
 use logos::Logos;
+use crate::compiler_context::CompilerContext;
 
 pub type LineTokens = Vec<Token>;
 
@@ -34,7 +34,7 @@ fn get_indent_token(
 pub fn tokenize_line(
     line_index: usize,
     content: &str,
-    ctx: &mut CompilerContext
+    ctx: &mut CompilerContext,
 ) -> CompilerResult<LineTokens> {
     let mut tokens = vec![get_indent_token(line_index, content, ctx)?];
     let mut lexer = TokenType::lexer(content);

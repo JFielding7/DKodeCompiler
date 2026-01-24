@@ -1,21 +1,21 @@
-use crate::ast::access_node::{AccessNode, Member, MemberType};
-use crate::ast::AST;
-use crate::ast::ast_node::{ExpressionId, Expression};
-use crate::ast::binary_operator_node::{BinaryOperatorNode};
+use crate::ast::access_node::{AccessNode, Member};
+use crate::ast::ast_node::{Expression, ExpressionId};
+use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::index_node::IndexNode;
-use crate::ast::unary_operator_node::{UnaryOperatorNode};
+use crate::ast::unary_operator_node::UnaryOperatorNode;
 use crate::ast::variable_node::VariableNode;
+use crate::ast::AST;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::lexical_analysis::token::TokenType::*;
 use crate::lexical_analysis::token::{Token, TokenType};
 use crate::operators::binary_operators::BinaryOperator;
-use crate::operators::unary_operators::UnaryOperator;
-use crate::syntax_analysis::error::SyntaxError::{ExpressionExpected, InvalidExpression, UnmatchedGroupOpening};
 use crate::operators::precedence::OperatorPrecedenceGroup;
 use crate::operators::precedence::OperatorPrecedenceGroup::Prefix;
+use crate::operators::unary_operators::UnaryOperator;
 use crate::source::source_span::{SourceLocation, SourceSpan};
+use crate::syntax_analysis::error::SyntaxError::{ExpressionExpected, InvalidExpression, UnmatchedGroupOpening};
 use crate::syntax_analysis::parser::token_stream::TokenStream;
 use crate::syntax_analysis::parser::type_annotation::parse_type_annotation;
 

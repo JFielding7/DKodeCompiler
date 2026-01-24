@@ -6,7 +6,7 @@ use crate::lexical_analysis::token::TokenType::{CloseParen, Colon, Comma, Identi
 use crate::syntax_analysis::error::SyntaxError::UnexpectedExpression;
 use crate::syntax_analysis::parser::token_stream::TokenStream;
 use crate::syntax_analysis::parser::type_annotation::parse_type_annotation;
-use crate::types::type_annotation::TypeAnnotation;
+use crate::phase::types::type_annotation::TypeAnnotation;
 
 pub fn parse_function_name(token_stream: &mut TokenStream) -> CompilerResult<DefaultSymbol> {
     Ok(token_stream.expect_next_identifier()?.symbol)

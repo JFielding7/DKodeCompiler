@@ -1,7 +1,7 @@
 use string_interner::DefaultSymbol;
 use crate::ast::block::BlockId;
 use crate::source::source_span::SourceSpan;
-use crate::types::type_annotation::TypeAnnotation;
+use crate::phase::types::type_annotation::TypeAnnotation;
 
 #[derive(Debug)]
 pub struct FunctionDefNode {

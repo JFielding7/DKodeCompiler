@@ -7,12 +7,12 @@ use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::{ConditionBlock, IfNode};
 use crate::ast::while_node::WhileNode;
 use crate::ast::AST;
-use crate::compiler_context::symbol_table::scope::Scope;
-use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::lexical_analysis::token::TokenType;
 use crate::lexical_analysis::token::TokenType::*;
+use crate::phase::symbol_table::scope::Scope;
+use crate::phase::SyntaxAnalysis;
 use crate::syntax_analysis::error::SyntaxError::IndentTooLarge;
 use crate::syntax_analysis::parser::class_def::{parse_class_name, parse_field};
 use crate::syntax_analysis::parser::expression::ExpressionParser;
@@ -22,22 +22,22 @@ use crate::syntax_analysis::parser::statement::Statement;
 use crate::syntax_analysis::parser::token_stream::TokenStream;
 use string_interner::DefaultSymbol;
 
-pub struct ASTParser<'llvm_ctx> {
+pub struct ASTParser {
     pub ast: AST,
+    pub scopes: Vec<Scope<SyntaxAnalysis>>,
     statements_iter: SourceStatementsIter,
     curr_block_id: Option<BlockId>,
     curr_function_name: Option<DefaultSymbol>,
-    ctx: &'llvm_ctx mut CompilerContext,
 }
 
-impl<'llvm_ctx> ASTParser<'llvm_ctx> {
-    pub fn new(statements: SourceStatements, ctx: &'llvm_ctx mut CompilerContext) -> Self {
+impl ASTParser {
+    pub fn new(statements: SourceStatements) -> Self {
         Self {
-            statements_iter: statements.into_iter(),
             ast: AST::new(),
+            scopes: Vec::new(),
+            statements_iter: statements.into_iter(),
             curr_block_id: None,
             curr_function_name: None,
-            ctx,
         }
     }
 
@@ -100,9 +100,9 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
         let mut fields = Vec::new();
 
         let block_id = self.ast.create_block();
-        let block_scope = Scope::new(self.curr_block_id, self.curr_function_name);
 
-        self.ctx.symbol_table.add_scope(block_scope);
+        let block_scope = Scope::syntax_analysis_scope(self.curr_block_id, self.curr_function_name);
+        self.scopes.push(block_scope);
 
         let parent_block_id = self.curr_block_id;
         self.curr_block_id = Some(block_id);
@@ -256,9 +256,9 @@ impl<'llvm_ctx> ASTParser<'llvm_ctx> {
         use BlockChildNodeId::*;
 
         let block_id = self.ast.create_block();
-        let block_scope = Scope::new(self.curr_block_id, self.curr_function_name);
-        
-        self.ctx.symbol_table.add_scope(block_scope);
+
+        let block_scope = Scope::syntax_analysis_scope(self.curr_block_id, self.curr_function_name);
+        self.scopes.push(block_scope);
         
         let parent_block_id = self.curr_block_id;
         self.curr_block_id = Some(block_id);

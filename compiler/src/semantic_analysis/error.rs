@@ -1,20 +1,25 @@
-use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::SpannableError;
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
-use crate::types::data_type::DataTypeId;
 use string_interner::DefaultSymbol;
-use SemanticError::*;
+use crate::compiler_context::CompilerContext;
 
 #[derive(Debug)]
 pub enum SemanticError {
-    MismatchedUnaryOperatorTypes(UnaryOperator, DataTypeId),
+    MismatchedUnaryOperatorTypes {
+        operator_type: UnaryOperator,
+        operand_type: String
+    },
 
-    MismatchedBinaryOperatorTypes(BinaryOperator, DataTypeId, DataTypeId),
+    MismatchedBinaryOperatorTypes {
+        op: BinaryOperator,
+        lhs_data_type: String,
+        rhs_data_type: String,
+    },
 
     MismatchedTypes {
-        expected: DataTypeId,
-        actual: DataTypeId,
+        expected: String,
+        actual: String,
     },
 
     DuplicateParameterName(DefaultSymbol),
@@ -33,8 +38,8 @@ pub enum SemanticError {
     ReturnStatementOutsideFunction,
 
     IncorrectReturnType {
-        expected: DataTypeId,
-        actual: DataTypeId,
+        expected: String,
+        actual: String,
     },
     
     InvalidLValue,
@@ -48,26 +53,19 @@ pub enum SemanticError {
 
 impl SpannableError for SemanticError {
     fn format(&self, ctx: &CompilerContext) -> String {
+        use SemanticError::*;
+
         let string_interner = &ctx.string_interner;
-        let type_arena = &ctx.type_arena;
 
         match self {
-            MismatchedUnaryOperatorTypes(op, id) => {
-                format!("Error: Operator {op} not defined on {}",
-                        type_arena.format_type(*id, string_interner)
-                )
+            MismatchedUnaryOperatorTypes { operator_type, operand_type } => {
+                format!("Error: Operator {operator_type} not defined on {operand_type}")
             }
-            MismatchedBinaryOperatorTypes(op, left, right) => {
-                format!("Error: Operator {op} not defined for {} and {}", 
-                        type_arena.format_type(*left, string_interner),
-                        type_arena.format_type(*right, string_interner)
-                )
+            MismatchedBinaryOperatorTypes { op, lhs_data_type, rhs_data_type } => {
+                format!("Error: Operator {op} not defined for {lhs_data_type} and {rhs_data_type}")
             }
             MismatchedTypes { expected, actual } => {
-                format!("Error: Mismatched types: Expected {}, but got {}",
-                        type_arena.format_type(*expected, string_interner),
-                        type_arena.format_type(*actual, string_interner)
-                )
+                format!("Error: Mismatched types: Expected {expected}, but got {actual}")
             }
             UndefinedVariable(var_name) => {
                 format!("Error: Undefined variable: {}",
@@ -75,12 +73,12 @@ impl SpannableError for SemanticError {
                 )
             }
             DuplicateParameterName(param_name) => {
-                format!("Error: Duplicate parameter definition: {}", 
+                format!("Error: Duplicate parameter definition: {}",
                         string_interner.get_str(*param_name)
                 )
             }
             DuplicateFunctionName(func_name) => {
-                format!("Error: Duplicate function definition: {}", 
+                format!("Error: Duplicate function definition: {}",
                         string_interner.get_str(*func_name)
                 )
             }
@@ -94,10 +92,7 @@ impl SpannableError for SemanticError {
                 "Error: Return statement outside function".to_string()
             }
             IncorrectReturnType { expected, actual } => {
-                format!("Error: Incorrect Return type: Expected {}, but got {}",
-                        type_arena.format_type(*expected, string_interner),
-                        type_arena.format_type(*actual, string_interner)
-                )
+                format!("Error: Incorrect Return type: Expected {expected}, but got {actual}")
             }
             InvalidLValue => {
                 "Error: Value is not assignable".to_string()
@@ -106,7 +101,7 @@ impl SpannableError for SemanticError {
                 "Error: Undefined type".to_string()
             }
             DuplicateType(type_name) => {
-                format!("Error: Duplicate function definition: {}", 
+                format!("Error: Duplicate function definition: {}",
                         string_interner.get_str(*type_name)
                 )
             }

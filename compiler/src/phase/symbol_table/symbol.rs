@@ -1,38 +1,35 @@
 use string_interner::DefaultSymbol;
-use crate::types::data_type::DataTypeId;
+use crate::phase::Phase;
 use crate::source::source_span::SourceSpan;
 
 #[derive(Debug)]
-pub struct Symbol {
-    pub id: SymbolId,
+pub struct Symbol<T: Phase> {
     pub name: DefaultSymbol,
-    pub data_type_id: Option<DataTypeId>,
     pub symbol_type: SymbolType,
-    def_span: SourceSpan,
+    pub def_span: SourceSpan,
+    pub data_type_id: T::SymbolDataTypeId,
+    pub llvm_var: T::LLVMVariable,
 }
 
-impl Symbol {
+impl<T: Phase> Symbol<T> {
     pub fn new(
-        id: SymbolId, 
-        name: DefaultSymbol, 
-        symbol_type: SymbolType, 
-        def_span: SourceSpan
+        name: DefaultSymbol,
+        symbol_type: SymbolType,
+        def_span: SourceSpan,
+        data_type_id: T::SymbolDataTypeId,
+        llvm_var: T::LLVMVariable,
     ) -> Self {
         Self {
-            id,
             name,
             def_span,
             symbol_type,
-            data_type_id: None,
+            data_type_id,
+            llvm_var,
         }
-    }
-
-    pub fn data_type_id(&self) -> DataTypeId {
-        self.data_type_id.expect("Symbol must have data type")
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum SymbolType {
     Variable,
     FunctionParam(usize),

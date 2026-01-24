@@ -1,8 +1,8 @@
-use std::vec::IntoIter;
-use crate::compiler_context::CompilerContext;
 use crate::error::compiler_error::CompilerResult;
 use crate::lexical_analysis::tokenizer::{tokenize_line, LineTokens};
 use crate::source::source_file::SourceFile;
+use std::vec::IntoIter;
+use crate::compiler_context::CompilerContext;
 
 pub mod token;
 mod tokenizer;

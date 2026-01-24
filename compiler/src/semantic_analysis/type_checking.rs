@@ -1,42 +1,55 @@
-use std::iter::Map;
-use std::slice::Iter;
-use crate::ast::ast_node::{Expression, ExpressionId, Item, ItemId, Statement, StatementId};
+use crate::ast::ast_node::Expression::Variable;
+use crate::ast::ast_node::Item::{ClassDef, FunctionDef};
+use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, StatementId};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
+use crate::ast::block::BlockId;
+use crate::ast::class_def_node::ClassDefNode;
+use crate::ast::for_node::ForNode;
 use crate::ast::function_call_node::FunctionCallNode;
 use crate::ast::function_def_node::{FunctionDefNode, Parameter};
+use crate::ast::if_node::IfNode;
+use crate::ast::while_node::WhileNode;
 use crate::ast::AST;
-use crate::compiler_context::CompilerContext;
+use crate::phase::{NameResolution, TypeChecking};
+use crate::phase::symbol_table::operator_registry::OperatorRegistry;
+use crate::phase::symbol_table::scope::Scope;
+use crate::phase::symbol_table::symbol::Symbol;
+use crate::phase::symbol_table::SymbolTable;
+use crate::phase::types::builtin_type::BuiltinType;
+use crate::phase::types::builtin_type::BuiltinType::{Int, Str, Unit};
+use crate::phase::types::data_type::DataTypeEnum::{Fn, UserDefined};
+use crate::phase::types::data_type::{DataType, DataTypeEnum, DataTypeId, FunctionDataType, FunctionDataTypeId};
+use crate::phase::types::type_arena::TypeArena;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::operators::binary_operators::BinaryOperator::Assign;
 use crate::operators::unary_operators::UnaryOperator;
 use crate::semantic_analysis::error::SemanticError::*;
 use crate::source::source_span::SourceSpan;
-use crate::types::builtin_type::BuiltinType::{Int, Str, Unit};
-use crate::types::data_type::{DataType, DataTypeId};
+use std::collections::HashMap;
 use string_interner::DefaultSymbol;
-use crate::ast::ast_node::Expression::Variable;
-use crate::ast::ast_node::Item::{ClassDef, FunctionDef};
-use crate::ast::block::BlockId;
-use crate::ast::class_def_node::ClassDefNode;
-use crate::ast::for_node::ForNode;
-use crate::ast::if_node::IfNode;
-use crate::ast::while_node::WhileNode;
-use crate::types::data_type::DataType::UserDefined;
+use strum::IntoEnumIterator;
+use crate::compiler_context::CompilerContext;
 
-pub struct TypeSynthesizer<'ast, 'llvm_ctx> {
-    ast: &'ast AST,
-    ctx: &'llvm_ctx mut CompilerContext,
+pub struct TypeChecker<'ctx> {
+    ast: &'ctx AST,
+    name_resolution_symbol_table: SymbolTable<NameResolution>,
+    symbol_table: SymbolTable<TypeChecking>,
+    type_arena: TypeArena<TypeChecking>,
+    ctx: &'ctx mut CompilerContext,
     ast_expr_data_types: Vec<Option<DataTypeId>>,
     curr_block_id: BlockId,
 }
 
-impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
-    fn new(ast: &'ast AST, ctx: &'llvm_ctx mut CompilerContext) -> Self {
+impl<'ast> TypeChecker<'ast> {
+    fn new(ast: &'ast AST, name_resolution_symbol_table: SymbolTable<NameResolution>, ctx: &'ast mut CompilerContext) -> Self {
         let ast_node_data_type = vec![None; ast.expression_count()];
 
         Self {
             ast,
+            symbol_table: SymbolTable::type_checking_symbol_table(&name_resolution_symbol_table),
+            name_resolution_symbol_table,
+            type_arena: TypeArena::type_checking_type_arena(),
             ctx,
             ast_expr_data_types: ast_node_data_type,
             curr_block_id: ast.global_block_id,
@@ -55,9 +68,27 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         &self,
         var_name: DefaultSymbol,
     ) -> CompilerResult<Option<DataTypeId>> {
-        match self.ctx.symbol_table.lookup(var_name, self.curr_block_id) {
+        match self.symbol_table.lookup(var_name, self.curr_block_id) {
             None => Ok(None),
-            Some(symbol) => Ok(symbol.data_type_id)
+            Some(symbol) => Ok(Some(symbol.data_type_id))
+        }
+    }
+
+    fn assign_variable_type(
+        &mut self,
+        var_id: ExpressionId,
+        data_type_id: DataTypeId
+    ) -> CompilerResult<()> {
+        let node = self.ast.lookup_expression(var_id);
+
+        if let Variable(var) = &node.node_type {
+            let symbol = self.name_resolution_symbol_table.lookup_expect_exist(var.name, self.curr_block_id);
+            self.symbol_table.assign_symbol_type(symbol, data_type_id, self.curr_block_id);
+
+            self.ast_expr_data_types[var_id.as_usize()] = Some(data_type_id);
+            Ok(())
+        } else {
+            Err(TypeInference.at(node.span))
         }
     }
 
@@ -73,30 +104,15 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
             None => return Err(TypeInference.at(operand_node.span)),
         };
 
-        match self.ctx.symbol_table.unary_op_impl.operation_type(operator_type, &operand_type_id, &self.ctx.type_arena) {
+        match self.symbol_table.unary_op_impl.operation_type(operator_type, &operand_type_id, &self.type_arena) {
             Some(data_type) => Ok(data_type),
-            None => Err(MismatchedUnaryOperatorTypes(operator_type, operand_type_id)
-                .at(operand_node.span)
-            ),
-        }
-    }
+            None => {
+                let operand_type = self.type_arena.format_type(operand_type_id, self.ctx);
 
-    fn assign_variable_type(
-        &mut self,
-        var_id: ExpressionId,
-        data_type_id: DataTypeId
-    ) -> CompilerResult<()> {
-        let node = self.ast.lookup_expression(var_id);
-
-        if let Variable(var) = &node.node_type {
-            println!("Scope: {:?} {}", self.curr_block_id, self.ctx.string_interner.get_str(var.name));
-            self.ctx.symbol_table
-                .assign_type(data_type_id, var.name, self.curr_block_id);
-
-            self.ast_expr_data_types[var_id.as_usize()] = Some(data_type_id);
-            Ok(())
-        } else {
-            Err(TypeInference.at(node.span))
+                Err(MismatchedUnaryOperatorTypes { operator_type, operand_type }
+                    .at(operand_node.span)
+                )
+            },
         }
     }
 
@@ -132,28 +148,38 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
             }
         };
 
-        match self.ctx.symbol_table.binary_op_impl.operation_type(
+        match self.symbol_table.binary_op_impl.operation_type(
             operator_node.op_type,
             &(lhs_type_id, rhs_type_id),
-            &self.ctx.type_arena
+            &self.type_arena
         ) {
             Some(data_type) => {
                 Ok(data_type)
             },
-            None => Err(MismatchedBinaryOperatorTypes(operator_node.op_type, lhs_type_id, rhs_type_id)
-                .at(operator_span)
-            ),
+            None => {
+                let lhs_data_type = self.type_arena.format_type(lhs_type_id, self.ctx);
+                let rhs_data_type = self.type_arena.format_type(rhs_type_id, self.ctx);
+
+                Err(MismatchedBinaryOperatorTypes {
+                        op: operator_node.op_type,
+                        lhs_data_type,
+                        rhs_data_type
+                    }.at(operator_span)
+                )
+            },
         }
     }
 
     fn check_param_types(
         &mut self,
-        param_types: &Vec<DataTypeId>,
+        function_data_type_id: FunctionDataTypeId,
         arg_ids: &Vec<ExpressionId>
     ) -> CompilerResult<()> {
-        let param_iter = param_types.iter().zip(arg_ids);
 
-        for (&formal_param_type_id, &param_node_id) in param_iter {
+        let function_type = self.type_arena.get_function_data_type(function_data_type_id);
+        let param_types = function_type.param_types.clone(); // TODO: avoid cloning
+
+        for (&formal_param_type_id, &param_node_id) in param_types.iter().zip(arg_ids) {
             let param_node = self.ast.lookup_expression(param_node_id);
 
             match self.compute_expression_type(param_node_id)? {
@@ -162,9 +188,12 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
                 },
                 Some(actual_param_type_id) => {
                     if actual_param_type_id != formal_param_type_id {
+                        let expected = self.type_arena.format_type(formal_param_type_id, self.ctx);
+                        let actual = self.type_arena.format_type(actual_param_type_id, self.ctx);
+
                         return Err(MismatchedTypes {
-                            expected: formal_param_type_id,
-                            actual: actual_param_type_id
+                            expected,
+                            actual
                         }.at(param_node.span))
                     }
                 }
@@ -186,14 +215,15 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
 
         Ok(match func_type_opt {
             Some(func_type) => {
-                use DataType::*;
 
-                // TODO: avoid cloning
-                match self.ctx.type_arena.get_data_type(func_type).clone() {
-                    Fn(function_type) => {
+                match self.type_arena.get_data_type(func_type).data_type_kind {
+                    Fn(function_type_id) => {
                         let arg_expressions = &func_call_node.args;
                         let actual_args_count = arg_expressions.len();
-                        let expected_args_count = function_type.param_types.len();
+                        let expected_args_count = self.type_arena
+                            .get_function_data_type(function_type_id)
+                            .param_types
+                            .len();
 
                         if actual_args_count != expected_args_count {
                             return Err(IncorrectArgumentCount {
@@ -202,9 +232,9 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
                             }.at(span))
                         }
 
-                        self.check_param_types(&function_type.param_types, &arg_expressions)?;
+                        self.check_param_types(function_type_id, &arg_expressions)?;
 
-                        function_type.return_type
+                        self.type_arena.get_function_data_type(function_type_id).return_type
                     },
                     _ => return Err(FunctionExpected.at(func_node.span))
                 }
@@ -219,30 +249,28 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         &mut self,
         expr_id_opt: Option<ExpressionId>
     ) -> CompilerResult<DataTypeId> {
-        use DataType::*;
 
         let expr_id = match expr_id_opt {
             Some(expr_id) => expr_id,
-            None => return Ok(self.ctx.type_arena.builtin_type_id(Unit))
+            None => return Ok(self.type_arena.get_builtin_type_id(Unit))
         };
 
         let node = self.ast.lookup_expression(expr_id);
         let span = node.span;
         let scope_id = self.curr_block_id;
 
-        let func_name = match self.ctx.symbol_table.scope_function_name(scope_id) {
+        let func_name = match self.symbol_table.scope_function_name(scope_id) {
             Some(func_name) => func_name,
             None => return Err(ReturnStatementOutsideFunction.at(span)),
         };
 
-        let func_type = self.ctx.symbol_table
+        let func_type = self.symbol_table
             .lookup(func_name, scope_id)
             .expect("Function must be defined")
-            .data_type_id
-            .expect("Function must have data type");
+            .data_type_id;
 
-        let expected_return_type = match self.ctx.type_arena.get_data_type(func_type) {
-            Fn(function_type) => function_type.return_type,
+        let expected_return_type = match &self.type_arena.get_data_type(func_type).data_type_kind {
+            Fn(function_type_id) => self.type_arena.get_function_data_type(*function_type_id).return_type,
             _ => unreachable!("Function must have function type")
         };
 
@@ -254,9 +282,12 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         if actual_return_type == expected_return_type {
             Ok(actual_return_type)
         } else {
+            let expected = self.type_arena.format_type(expected_return_type, self.ctx);
+            let actual = self.type_arena.format_type(actual_return_type, self.ctx);
+
             Err(IncorrectReturnType {
-                expected: expected_return_type,
-                actual: actual_return_type
+                expected,
+                actual
             }.at(span))
         }
     }
@@ -271,11 +302,11 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
 
         let data_type_id = match &node.node_type {
             IntLiteral(_) => {
-                Some(self.ctx.type_arena.builtin_type_id(Int))
+                Some(self.type_arena.get_builtin_type_id(Int))
             },
 
             StringLiteral(_) => {
-                Some(self.ctx.type_arena.builtin_type_id(Str))
+                Some(self.type_arena.get_builtin_type_id(Str))
             },
 
             Variable(var) => {
@@ -319,14 +350,14 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         Ok(())
     }
 
-    fn compute_while_types(&mut self, while_node: &WhileNode) -> CompilerResult<()> {
+    fn compute_while_types(&mut self, _: &WhileNode) -> CompilerResult<()> {
         unimplemented!("While loop types");
         // self.compute_expression_type(while_node.condition)?;
 
-        Ok(())
+        // Ok(())
     }
 
-    fn compute_for_types(&mut self, for_node: &ForNode) -> CompilerResult<()> {
+    fn compute_for_types(&mut self, _: &ForNode) -> CompilerResult<()> {
         unimplemented!("For loop types")
         // self.compute_expression_type(for_node.iterator)?;
         //
@@ -339,7 +370,6 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         use Statement::*;
 
         let node = self.ast.lookup_statement(statement_id);
-        println!("{node:?}");
 
         match &node.node_type {
             ExpressionStatement(expr_id) => {
@@ -395,13 +425,15 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
             .iter()
             .map(|var| {
                 // TODO: generics
-                let type_id = self.ctx.type_arena
-                    .get_type_id(var.type_annotation.type_name, &self.ctx.string_interner)
+                let data_type_id = self.type_arena
+                    .get_type_id(var.type_annotation.type_name, self.ctx)
                     .ok_or_else(|| UndefinedType.at(var.span))?;
 
-                self.ctx.symbol_table.assign_type(type_id, var.name, block_id);
+                let symbol = self.name_resolution_symbol_table.lookup_expect_exist(var.name, block_id);
 
-                Ok(type_id)
+                self.symbol_table.assign_symbol_type(symbol, data_type_id, block_id);
+
+                Ok(data_type_id)
             })
             .collect()
     }
@@ -419,7 +451,7 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         func_def_node: &FunctionDefNode
     ) -> CompilerResult<DataTypeId> {
         Ok(match &func_def_node.return_type {
-            None => self.ctx.type_arena.builtin_type_id(Unit),
+            None => self.type_arena.get_builtin_type_id(Unit),
             Some(ret) => {
                 if ret.inner_types.len() > 0 {
                     unimplemented!("Generic type annotations")
@@ -427,8 +459,8 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
 
                 // TODO: generics
                 let return_type_symbol = ret.type_name;
-                self.ctx.type_arena
-                    .get_type_id(return_type_symbol, &self.ctx.string_interner)
+                self.type_arena
+                    .get_type_id(return_type_symbol, self.ctx)
                     .ok_or_else(|| UndefinedType.at(ret.span))?
             }
         })
@@ -441,13 +473,14 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         let param_types = self.compute_function_param_types(func_def_node)?;
         let return_type = self.compute_function_return_type(func_def_node)?;
 
-        let function_type = DataType::function(param_types, return_type);
+        let function_type = FunctionDataType::new(param_types, return_type);
 
-        let function_type_id = self.ctx.type_arena.get_or_insert_type(function_type);
+        let function_type_id = self.type_arena.get_or_insert_function_type(function_type);
 
-        self.ctx.symbol_table.assign_type(
-            function_type_id, func_def_node.name, self.curr_block_id
+        let symbol = self.name_resolution_symbol_table.lookup_expect_exist(
+            func_def_node.name, self.curr_block_id
         );
+        self.symbol_table.assign_symbol_type(symbol, function_type_id, self.curr_block_id);
 
         Ok(())
     }
@@ -455,9 +488,9 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
     fn compute_class_def_types(&mut self, class_def_node: &ClassDefNode) -> CompilerResult<()> {
         // TODO: Generics
         let type_name = class_def_node.class_type.type_name;
-        let class_type = UserDefined(class_def_node.class_type.type_name);
+        let class_type = UserDefined(class_def_node.class_type.type_name).into();
 
-        if self.ctx.type_arena.insert_new_type(class_type).is_none() {
+        if self.type_arena.insert_new_type(class_type).is_none() {
             return Err(DuplicateType(type_name).at(class_def_node.class_type.span));
         }
 
@@ -498,22 +531,19 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
         Ok(())
     }
 
-    pub fn synthesize(ast: &'llvm_ctx AST, ctx: &'llvm_ctx mut CompilerContext) -> CompilerResult<Vec<DataTypeId>> {
-        let mut synthesizer = TypeSynthesizer::new(&ast, ctx);
-        synthesizer.compute_block_types(ast.global_block_id)?;
+    pub fn check_types(ast: &'ast AST, name_resolution_symbol_table: SymbolTable<NameResolution>, ctx: &'ast mut CompilerContext) -> CompilerResult<TypeCheckingOutput> {
+        let mut type_checker = TypeChecker::new(&ast, name_resolution_symbol_table, ctx);
+        type_checker.compute_block_types(ast.global_block_id)?;
 
         let mut ast_expr_types = Vec::with_capacity(
-            synthesizer.ast_expr_data_types.len()
+            type_checker.ast_expr_data_types.len()
         );
 
-        for (i, &node_data_type) in synthesizer.ast_expr_data_types.iter().enumerate() {
-            match node_data_type {
+        for &data_type_id_opt in &type_checker.ast_expr_data_types {
+            match data_type_id_opt {
                 None => {
-                    ast_expr_types.push(DataTypeId(0))
                     // TODO
-                    // return Err(TypeInference.at(
-                    //     ast.lookup_expression(ExpressionId::new(i)).span)
-                    // )
+                    ast_expr_types.push(DataTypeId::new(0));
                 },
                 Some(node_type) => {
                     ast_expr_types.push(node_type);
@@ -521,6 +551,90 @@ impl<'ast, 'llvm_ctx> TypeSynthesizer<'ast, 'llvm_ctx> {
             }
         }
 
-        Ok(ast_expr_types)
+        Ok(TypeCheckingOutput::new(ast_expr_types, type_checker.symbol_table, type_checker.type_arena))
+    }
+}
+
+impl SymbolTable<TypeChecking> {
+    pub fn type_checking_symbol_table(name_resolution_symbol_table: &SymbolTable<NameResolution>) -> Self {
+        let scopes: Vec<Scope<TypeChecking>> = name_resolution_symbol_table.scopes
+            .iter()
+            .map(|scope| Scope::new(scope.parent, scope.function))
+            .collect();
+
+        Self {
+            scopes,
+            unary_op_impl: OperatorRegistry::new(),
+            binary_op_impl: OperatorRegistry::new(),
+        }
+    }
+
+    pub fn assign_symbol_type(
+        &mut self,
+        symbol: &Symbol<NameResolution>,
+        data_type_id: DataTypeId,
+        block_id: BlockId,
+    ) -> bool {
+        let symbol = Symbol::new(symbol.name, symbol.symbol_type, symbol.def_span, data_type_id, ());
+        self.scopes[block_id.as_usize()].insert(symbol)
+    }
+}
+
+impl TypeArena<TypeChecking> {
+    pub fn type_checking_type_arena() -> Self {
+        Self {
+            data_types: BuiltinType::iter()
+                .map(|t| DataTypeEnum::Builtin(t).into())
+                .collect(),
+            function_types: Vec::new(),
+            function_type_ids: HashMap::new(),
+        }
+    }
+
+    pub fn insert_new_type(&mut self, data_type: DataType<TypeChecking>) -> Option<DataTypeId> {
+        if self.data_types.contains(&data_type) {
+            None
+        } else {
+            Some(self.add_new_type(data_type))
+        }
+    }
+
+    pub fn get_or_insert_function_type(&mut self, data_type: FunctionDataType) -> DataTypeId {
+        if let Some(&data_type_id) = self.function_type_ids.get(&data_type) {
+            data_type_id
+        } else {
+            let function_type_id = FunctionDataTypeId::new(self.function_types.len());
+            self.function_types.push(data_type);
+
+            self.add_new_type(Fn(function_type_id).into())
+        }
+    }
+}
+
+impl From<DataTypeEnum> for DataType<TypeChecking> {
+    fn from(data_type_kind: DataTypeEnum) -> Self {
+        Self {
+            data_type_kind,
+            methods: HashMap::new(),
+            llvm_type: ()
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct TypeCheckingOutput {
+    pub ast_expr_data_types: Vec<DataTypeId>,
+    pub symbol_table: SymbolTable<TypeChecking>,
+    pub type_arena: TypeArena<TypeChecking>
+
+}
+
+impl TypeCheckingOutput {
+    pub fn new(ast_expr_data_types: Vec<DataTypeId>, symbol_table: SymbolTable<TypeChecking>, type_arena: TypeArena<TypeChecking>) -> Self {
+        Self {
+            ast_expr_data_types,
+            symbol_table,
+            type_arena
+        }
     }
 }

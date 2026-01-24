@@ -1,5 +1,5 @@
 use string_interner::DefaultSymbol;
-use crate::types::type_annotation::TypeAnnotation;
+use crate::phase::types::type_annotation::TypeAnnotation;
 
 #[derive(Debug)]
 pub struct VariableNode {

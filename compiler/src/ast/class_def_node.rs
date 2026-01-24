@@ -1,8 +1,6 @@
-use crate::ast::ast_node::ItemId;
-use string_interner::DefaultSymbol;
 use crate::ast::block::BlockId;
 use crate::ast::function_def_node::Parameter;
-use crate::types::type_annotation::TypeAnnotation;
+use crate::phase::types::type_annotation::TypeAnnotation;
 
 #[derive(Debug)]
 pub struct ClassDefNode {

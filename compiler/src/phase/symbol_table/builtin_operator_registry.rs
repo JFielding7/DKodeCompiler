@@ -1,25 +1,26 @@
-use crate::compiler_context::type_arena::TypeArena;
+use crate::phase::types::type_arena::TypeArena;
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
-use crate::types::data_type::DataTypeId;
-use crate::types::builtin_type::BuiltinType;
+use crate::phase::types::data_type::DataTypeId;
+use crate::phase::types::builtin_type::BuiltinType;
 use std::hash::Hash;
-use crate::types::data_type::DataType::Builtin;
+use crate::phase::Phase;
+use crate::phase::types::data_type::DataTypeEnum::Builtin;
 
-pub trait BuiltinOperatorRegistry {
+pub trait BuiltinOperatorRegistry<T: Phase> {
     type Operands: Hash + Eq;
 
-    fn builtin_operations(&self, operand: &Self::Operands, type_arena: &TypeArena) -> Option<DataTypeId>;
+    fn builtin_operations(&self, operand: &Self::Operands, type_arena: &TypeArena<T>) -> Option<DataTypeId>;
 }
 
-impl BuiltinOperatorRegistry for UnaryOperator {
+impl<T: Phase> BuiltinOperatorRegistry<T> for UnaryOperator {
     type Operands = DataTypeId;
 
-    fn builtin_operations(&self, operand_type_id: &DataTypeId, type_arena: &TypeArena) -> Option<DataTypeId> {
+    fn builtin_operations(&self, operand_type_id: &DataTypeId, type_arena: &TypeArena<T>) -> Option<DataTypeId> {
         use UnaryOperator::*;
         use BuiltinType::*;
 
-        let operand_type = match type_arena.get_data_type(*operand_type_id) {
+        let operand_type = match type_arena.get_data_type(*operand_type_id).data_type_kind {
             Builtin(builtin_type) => builtin_type,
             _ => return None,
         };
@@ -41,14 +42,14 @@ impl BuiltinOperatorRegistry for UnaryOperator {
             },
         };
 
-        Some(type_arena.builtin_type_id(builtin_type))
+        Some(type_arena.get_builtin_type_id(builtin_type))
     }
 }
 
-impl BuiltinOperatorRegistry for BinaryOperator {
+impl<T: Phase> BuiltinOperatorRegistry<T> for BinaryOperator {
     type Operands = (DataTypeId, DataTypeId);
 
-    fn builtin_operations(&self, operand_ids: &(DataTypeId, DataTypeId), type_arena: &TypeArena) -> Option<DataTypeId> {
+    fn builtin_operations(&self, operand_ids: &(DataTypeId, DataTypeId), type_arena: &TypeArena<T>) -> Option<DataTypeId> {
         use BinaryOperator::*;
         use BuiltinType::*;
 
@@ -60,12 +61,12 @@ impl BuiltinOperatorRegistry for BinaryOperator {
             return Some(rhs_type_id)
         }
 
-        let lhs_type = match type_arena.get_data_type(lhs_type_id) {
+        let lhs_type = match type_arena.get_data_type(lhs_type_id).data_type_kind {
             Builtin(builtin_type) => builtin_type,
             _ => return None,
         };
 
-        let rhs_type = match type_arena.get_data_type(rhs_type_id) {
+        let rhs_type = match type_arena.get_data_type(rhs_type_id).data_type_kind {
             Builtin(builtin_type) => builtin_type,
             _ => return None
         };
@@ -126,6 +127,6 @@ impl BuiltinOperatorRegistry for BinaryOperator {
             _ => return None,
         };
 
-        Some(type_arena.builtin_type_id(builtin_type_res))
+        Some(type_arena.get_builtin_type_id(builtin_type_res))
     }
 }

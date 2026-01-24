@@ -1,7 +1,7 @@
-use crate::compiler_context::CompilerContext;
 use crate::source::source_file::SourceFile;
 use crate::source::source_span::SourceSpan;
 use std::fmt::Debug;
+use crate::compiler_context::CompilerContext;
 
 #[derive(Debug)]
 pub struct CompilerError {

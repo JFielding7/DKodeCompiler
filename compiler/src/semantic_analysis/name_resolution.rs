@@ -1,8 +1,7 @@
 use crate::ast::access_node::AccessNode;
-use crate::ast::AST;
-use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, StatementId};
 use crate::ast::ast_node::Expression::Variable;
 use crate::ast::ast_node::Item::{ClassDef, FunctionDef};
+use crate::ast::ast_node::{Expression, ExpressionId, ItemId, Statement, StatementId};
 use crate::ast::binary_operator_node::BinaryOperatorNode;
 use crate::ast::block::BlockId;
 use crate::ast::class_def_node::ClassDefNode;
@@ -13,30 +12,36 @@ use crate::ast::if_node::IfNode;
 use crate::ast::index_node::IndexNode;
 use crate::ast::variable_node::VariableNode;
 use crate::ast::while_node::WhileNode;
-use crate::compiler_context::CompilerContext;
+use crate::ast::AST;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::operators::precedence::OperatorPrecedenceGroup::Assign;
+use crate::phase::symbol_table::scope::Scope;
+use crate::phase::symbol_table::symbol::{Symbol, SymbolType};
+use crate::phase::symbol_table::SymbolTable;
+use crate::phase::NameResolution;
 use crate::semantic_analysis::error::SemanticError::{DuplicateFunctionName, DuplicateParameterName, InvalidLValue, UndefinedVariable};
 use crate::source::source_span::SourceSpan;
+use crate::syntax_analysis::SyntaxAnalysisOutput;
+use string_interner::DefaultSymbol;
 
-pub struct NameResolver<'ast, 'llvm_ctx> {
+pub struct NameResolver<'ast> {
     ast: &'ast AST,
-    ctx: &'llvm_ctx mut CompilerContext,
+    symbol_table: SymbolTable<NameResolution>,
     curr_block_id: BlockId,
 }
 
-impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
-    fn new(ast: &'ast AST, ctx: &'llvm_ctx mut CompilerContext) -> Self {
+impl<'ast> NameResolver<'ast> {
+    fn new(syntax_output: &'ast SyntaxAnalysisOutput) -> Self {
         Self {
-            ast,
-            ctx,
-            curr_block_id: ast.global_block_id,
+            ast: &syntax_output.ast,
+            symbol_table: SymbolTable::name_resolution_table(syntax_output),
+            curr_block_id: syntax_output.ast.global_block_id,
         }
     }
 
     fn resolve_variable(&mut self, var: &VariableNode, span: SourceSpan) -> CompilerResult<()> {
-        if self.ctx.symbol_table.contains(var.name, self.curr_block_id) {
+        if self.symbol_table.contains(var.name, self.curr_block_id) {
             Ok(())
         } else {
             Err(UndefinedVariable(var.name).at(span))
@@ -49,10 +54,9 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
 
             let left_node = self.ast.lookup_expression(op.left);
             if let Variable(var) = &left_node.node_type {
-                self.ctx.symbol_table.insert_variable(var.name, left_node.span, self.curr_block_id);
+                self.symbol_table.insert_variable(var.name, left_node.span, self.curr_block_id);
             } else {
                 // TODO: later accept properties also
-                println!("{:?}", left_node.node_type);
                 return Err(InvalidLValue.at(left_node.span))
             }
         } else {
@@ -111,7 +115,7 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
 
         let item_var = &for_node.item_variable;
 
-        self.ctx.symbol_table.insert_variable(item_var.name, item_var.span, for_node.body_id);
+        self.symbol_table.insert_variable(item_var.name, item_var.span, for_node.body_id);
 
         self.resolve_block(for_node.body_id)?;
 
@@ -210,12 +214,12 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
     fn resolve_function_signature(&mut self, func_def_node: &FunctionDefNode, span: SourceSpan) -> CompilerResult<()> {
         let curr_block_id = self.curr_block_id;
 
-        if !self.ctx.symbol_table.insert_variable(func_def_node.name, span, curr_block_id) {
+        if !self.symbol_table.insert_variable(func_def_node.name, span, curr_block_id) {
             return Err(DuplicateFunctionName(func_def_node.name).at(span))
         }
 
         for (i, param) in func_def_node.params.iter().enumerate() {
-            let inserted = self.ctx.symbol_table.insert_function_param(
+            let inserted = self.symbol_table.insert_function_param(
                 param.name, i, param.span, func_def_node.body_id
             );
 
@@ -230,7 +234,7 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
     fn resolve_class_def(&mut self, class_def_node: &ClassDefNode) -> CompilerResult<()> {
 
         for (i, field) in class_def_node.fields.iter().enumerate() {
-            let inserted = self.ctx.symbol_table.insert_class_field(
+            let inserted = self.symbol_table.insert_class_field(
                 field.name, i, field.span, class_def_node.body_id
             );
 
@@ -278,11 +282,66 @@ impl<'ast, 'llvm_ctx> NameResolver<'ast, 'llvm_ctx> {
         Ok(())
     }
 
-    pub fn resolve(ast: &'llvm_ctx AST, ctx: &'llvm_ctx mut CompilerContext) -> CompilerResult<()> {
+    pub fn resolve(syntax_output: &'ast SyntaxAnalysisOutput) -> CompilerResult<SymbolTable<NameResolution>> {
 
-        let mut resolver = NameResolver::new(ast, ctx);
-        resolver.resolve_block(ast.global_block_id)?;
+        let mut resolver = NameResolver::new(syntax_output);
+        resolver.resolve_block(syntax_output.ast.global_block_id)?;
 
-        Ok(())
+        Ok(resolver.symbol_table)
+    }
+}
+
+impl SymbolTable<NameResolution> {
+    pub fn name_resolution_table(syntax_output: &SyntaxAnalysisOutput) -> Self {
+        let scopes: Vec<Scope<NameResolution>> = syntax_output.scopes
+            .iter()
+            .map(|scope| Scope::new(scope.parent, scope.function))
+            .collect();
+
+        Self {
+            scopes,
+            unary_op_impl: (),
+            binary_op_impl: (),
+        }
+    }
+
+    pub fn insert_symbol(
+        &mut self,
+        name: DefaultSymbol,
+        symbol_type: SymbolType,
+        def_span: SourceSpan,
+        block_id: BlockId,
+    ) -> bool {
+        let symbol = Symbol::new(name, symbol_type, def_span, (), ());
+        self.scopes[block_id.as_usize()].insert(symbol)
+    }
+
+    pub fn insert_variable(
+        &mut self,
+        name: DefaultSymbol,
+        def_span: SourceSpan,
+        block_id: BlockId
+    ) -> bool {
+        self.insert_symbol(name, SymbolType::Variable, def_span, block_id)
+    }
+
+    pub fn insert_function_param(
+        &mut self,
+        name: DefaultSymbol,
+        param_index: usize,
+        def_span: SourceSpan,
+        block_id: BlockId
+    ) -> bool {
+        self.insert_symbol(name, SymbolType::FunctionParam(param_index), def_span, block_id)
+    }
+
+    pub fn insert_class_field(
+        &mut self,
+        name: DefaultSymbol,
+        param_index: usize,
+        def_span: SourceSpan,
+        block_id: BlockId
+    ) -> bool {
+        self.insert_symbol(name, SymbolType::ClassField(param_index), def_span, block_id)
     }
 }

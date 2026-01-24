@@ -1,23 +1,24 @@
 use std::collections::HashMap;
 use std::hash::Hash;
-use crate::compiler_context::symbol_table::builtin_operator_registry::BuiltinOperatorRegistry;
-use crate::compiler_context::type_arena::TypeArena;
-use crate::types::data_type::DataTypeId;
+use crate::phase::Phase;
+use crate::phase::symbol_table::builtin_operator_registry::BuiltinOperatorRegistry;
+use crate::phase::types::type_arena::TypeArena;
+use crate::phase::types::data_type::DataTypeId;
 
 // TODO: operator overloading
 #[derive(Debug)]
-pub struct OperatorRegistry<OpType: Eq + Hash + BuiltinOperatorRegistry> {
+pub struct OperatorRegistry<T: Phase, OpType: Eq + Hash + BuiltinOperatorRegistry<T>> {
     implementations: HashMap<OpType, HashMap<OpType::Operands, DataTypeId>>
 }
 
-impl<OpType: Eq + Hash + BuiltinOperatorRegistry> OperatorRegistry<OpType> {
+impl<T: Phase, OpType: Eq + Hash + BuiltinOperatorRegistry<T>> OperatorRegistry<T, OpType> {
     pub fn new() -> Self {
         Self {
             implementations: HashMap::new()
         }
     }
 
-    pub fn operation_type(&self, op_type: OpType, operands: &OpType::Operands, type_arena: &TypeArena) -> Option<DataTypeId> {
+    pub fn operation_type(&self, op_type: OpType, operands: &OpType::Operands, type_arena: &TypeArena<T>) -> Option<DataTypeId> {
         if let Some(data_type_id) = op_type.builtin_operations(operands, type_arena) {
             return Some(data_type_id);
         }

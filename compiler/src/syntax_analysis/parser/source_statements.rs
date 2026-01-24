@@ -13,10 +13,6 @@ impl SourceStatements {
             statements
         }
     }
-
-    pub fn count(&self) -> usize {
-        self.statements.len()
-    }
 }
 
 impl From<TokenizedLines> for SourceStatements {
@@ -55,9 +51,7 @@ impl From<TokenizedLines> for SourceStatements {
         if !curr_statement_tokens.is_empty() {
             statements.push(Statement::new(curr_statement_tokens));
         }
-
-        println!("{}", statements.len());
-
+        
         Self::new(statements)
     }
 }

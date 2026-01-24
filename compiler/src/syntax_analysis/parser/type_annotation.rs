@@ -2,7 +2,7 @@ use crate::error::compiler_error::CompilerResult;
 use crate::lexical_analysis::token::TokenType::{Comma, DoubleRightArrow, Greater, Less};
 use crate::source::source_span::SourceSpan;
 use crate::syntax_analysis::parser::token_stream::TokenStream;
-use crate::types::type_annotation::TypeAnnotation;
+use crate::phase::types::type_annotation::TypeAnnotation;
 
 fn assert_type_params_closed(token_stream: &mut TokenStream) -> CompilerResult<()> {
     if token_stream.peek_matches(DoubleRightArrow) {
@@ -46,7 +46,7 @@ pub fn parse_type_annotation(token_stream: &mut TokenStream) -> CompilerResult<T
         let type_span = SourceSpan::new(type_token_span.start, token_stream.prev_span().end);
         Ok(TypeAnnotation::with_params(type_name, inner_types, type_span))
         
-    } else { ;
+    } else {
         Ok(TypeAnnotation::new(type_name, type_token_span))
     }
 }

@@ -1,14 +1,13 @@
 use std::fs;
-use crate::compiler_context::CompilerContext;
-use crate::semantic_analysis::AnnotatedAST;
+use crate::semantic_analysis::SemanticAnalysisOutput;
 use inkwell::context::Context;
 use generator::CodeGenerator;
+use crate::compiler_context::CompilerContext;
 
 pub mod generator;
 mod value;
-mod types;
 
-pub fn generate_code(ast: AnnotatedAST, ctx: &mut CompilerContext) {
+pub fn generate_code(ast: SemanticAnalysisOutput, ctx: &mut CompilerContext) {
     const OUTPUT_FILE: &str = "dkwon.ll";
 
     let llvm_context = Context::create();

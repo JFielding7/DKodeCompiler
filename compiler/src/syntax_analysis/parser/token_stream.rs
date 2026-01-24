@@ -1,11 +1,11 @@
-use crate::source::source_span::{SourceLocation, SourceSpan};
-use crate::lexical_analysis::token::TokenType::Identifier;
-use crate::lexical_analysis::token::{Token, TokenType};
-use std::iter::Peekable;
-use std::slice::Iter;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
+use crate::lexical_analysis::token::TokenType::Identifier;
+use crate::lexical_analysis::token::{Token, TokenType};
+use crate::source::source_span::SourceSpan;
 use crate::syntax_analysis::error::SyntaxError::ExpectedToken;
+use std::iter::Peekable;
+use std::slice::Iter;
 
 pub struct TokenStream<'a> {
     iter: Peekable<Iter<'a, Token>>,
