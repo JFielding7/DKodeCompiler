@@ -8,7 +8,6 @@ use crate::syntax_analysis::parser::source_statements::SourceStatements;
 
 mod parser;
 mod error;
-mod scope;
 
 pub struct SyntaxAnalysisOutput {
     pub ast: AST,

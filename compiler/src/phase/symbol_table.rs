@@ -22,14 +22,6 @@ where
     T: Phase,
     T: Phase<Symbols = HashMap<DefaultSymbol, Symbol<T>>>,
 {
-    // pub fn new() -> Self {
-    //     Self {
-    //         scopes: Vec::new(),
-    //         unary_op_impl,
-    //         binary_op_impl
-    //     }
-    // }
-
     pub fn lookup(&self, name: DefaultSymbol, block_id: BlockId) -> Option<&Symbol<T>> {
         let mut curr_block_id = Some(block_id);
         

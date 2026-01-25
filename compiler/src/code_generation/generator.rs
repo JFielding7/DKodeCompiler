@@ -7,34 +7,32 @@ use crate::ast::function_def_node::FunctionDefNode;
 use crate::ast::if_node::IfNode;
 use crate::ast::unary_operator_node::UnaryOperatorNode;
 use crate::ast::variable_node::VariableNode;
+use crate::code_generation::types::LLVMDataType;
+use crate::code_generation::types::LLVMDataType::Function;
 use crate::code_generation::value::Value;
 use crate::code_generation::value::Value::{RValue, Void};
 use crate::compiler_context::CompilerContext;
 use crate::operators::binary_operators::BinaryOperator;
 use crate::operators::unary_operators::UnaryOperator;
-use crate::phase::symbol_table::operator_registry::OperatorRegistry;
-use crate::phase::symbol_table::scope::Scope;
 use crate::phase::symbol_table::symbol::SymbolType::FunctionParam;
-use crate::phase::symbol_table::symbol::{Symbol, SymbolType};
+use crate::phase::symbol_table::symbol::SymbolType;
 use crate::phase::symbol_table::SymbolTable;
 use crate::phase::types::builtin_type::BuiltinType;
 use crate::phase::types::builtin_type::BuiltinType::Str;
 use crate::phase::types::data_type::DataTypeEnum::{Builtin, Fn, UserDefined};
 use crate::phase::types::data_type::{DataType, DataTypeId, FunctionDataTypeId, Method};
-use crate::phase::types::llvm_type::LLVMDataType;
-use crate::phase::types::llvm_type::LLVMDataType::Function;
 use crate::phase::types::type_arena::TypeArena;
-use crate::phase::{CodeGeneration, TypeChecking};
-use crate::semantic_analysis::SemanticAnalysisOutput;
+use crate::phase::MultiPhase;
+use crate::semantic_analysis::{SemanticAnalysis, SemanticAnalysisOutput};
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType};
-use inkwell::values::{BasicMetadataValueEnum, FunctionValue, PointerValue, ValueKind};
+use inkwell::values::{BasicMetadataValueEnum, FunctionValue, ValueKind};
 use inkwell::AddressSpace;
-use std::collections::HashMap;
 use string_interner::DefaultSymbol;
+use crate::code_generation::CodeGeneration;
 
 pub struct CodeGenerator<'llvm_ctx> {
     llvm_context: &'llvm_ctx Context,
@@ -87,7 +85,7 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
             .get_intern_symbol(Self::STRING_CONSTRUCTOR);
         let str_new_method = self.type_arena
             .get_data_type(str_data_type_id)
-            .get_method(str_new_symbol).llvm_value;
+            .get_method(str_new_symbol).function_repr;
         
         let literal_str_with_quotes = self.compiler_context.string_interner.get_str(literal);
         let literal_str = &literal_str_with_quotes[1..literal_str_with_quotes.len() - 1].replace("\\\"", "\"");
@@ -115,26 +113,24 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
     }
 
     fn emit_variable(&mut self, var_node: &VariableNode, expr_id: ExpressionId) -> Value<'llvm_ctx> {
-        let sem_symbol = self.semantic_analysis_output.symbol_table.lookup_expect_exist(var_node.name, self.curr_block_id);
+        let semantic_symbol = self.semantic_analysis_output.symbol_table.lookup_expect_exist(var_node.name, self.curr_block_id);
 
         let symbol = match self.symbol_table.lookup(var_node.name, self.curr_block_id) {
             Some(symbol) => symbol,
             None => {
-                let basic_type: BasicTypeEnum = self.type_arena.get_data_type(sem_symbol.data_type_id).llvm_type.into();
+                let basic_type: BasicTypeEnum = self.type_arena.get_data_type(semantic_symbol.data_type_id).data_type_repr.into();
 
                 let var_ptr = self.builder.build_alloca(
                     basic_type,
                     self.compiler_context.string_interner.get_str(var_node.name)
                 ).unwrap();
 
-                self.symbol_table.lower_semantic_symbol(sem_symbol, var_ptr, self.curr_block_id);
-
-                self.symbol_table.lookup_expect_exist(sem_symbol.name, self.curr_block_id)
+                self.symbol_table.lower_semantic_symbol(semantic_symbol, var_ptr, self.curr_block_id)
             }
         };
 
         let data_type_id = self.semantic_analysis_output.expr_data_type_id(expr_id);
-        let data_type = self.type_arena.get_data_type(data_type_id).llvm_type;
+        let data_type = self.type_arena.get_data_type(data_type_id).data_type_repr;
         let llvm_type: BasicTypeEnum = data_type.into();
 
         let var_name = self.compiler_context.string_interner.get_str(var_node.name);
@@ -155,10 +151,13 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
                 ptr_val
             }
             SymbolType::Variable => {
-                symbol.llvm_var
+                symbol.llvm_variable
             }
             SymbolType::ClassField(_) => {
                 unimplemented!("ClassField is not implemented")
+            }
+            SymbolType::Class => {
+                unimplemented!("Class is not implemented")
             }
         };
 
@@ -252,7 +251,7 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
         let func = self.emit_expression(func_call_node.function).to_rvalue(&self.builder);
 
         let call = self.builder.build_indirect_call(
-            self.type_arena.get_data_type(func_type_id).llvm_type.function_type(),
+            self.type_arena.get_data_type(func_type_id).data_type_repr.function_type(),
             func.into_pointer_value(),
             &args,
             "fn_call",
@@ -383,7 +382,7 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
             func_def_node.name, self.curr_block_id
         );
 
-        let ret_type = self.type_arena.get_data_type(semantic_func_symbol.data_type_id).llvm_type;
+        let ret_type = self.type_arena.get_data_type(semantic_func_symbol.data_type_id).data_type_repr;
         let return_type: BasicTypeEnum = ret_type.into();
 
         let mut param_types = Vec::new();
@@ -392,7 +391,7 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
             let symbol = self.semantic_analysis_output.symbol_table
                 .lookup_expect_exist(param.name, func_def_node.body_id);
 
-            let param_type = self.type_arena.get_data_type(symbol.data_type_id).llvm_type;
+            let param_type = self.type_arena.get_data_type(symbol.data_type_id).data_type_repr;
             param_types.push(param_type.into());
         }
 
@@ -409,8 +408,11 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
             new_function.get_nth_param(i as u32).unwrap().set_name(param_name);
         }
 
-        self.symbol_table
-            .lower_semantic_symbol(semantic_func_symbol, new_function.as_global_value().as_pointer_value(), self.curr_block_id);
+        self.symbol_table.lower_semantic_symbol(
+            semantic_func_symbol, 
+            new_function.as_global_value().as_pointer_value(), 
+            self.curr_block_id
+        );
 
         new_function
     }
@@ -484,13 +486,13 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
         let mut params: Vec<BasicMetadataTypeEnum> = Vec::with_capacity(function_type.param_types.len());
 
         for &param_type_id in &function_type.param_types {
-            let data_type = self.type_arena.get_data_type(param_type_id).llvm_type;
+            let data_type = self.type_arena.get_data_type(param_type_id).data_type_repr;
             params.push(data_type.into());
         }
 
         let ret_llvm_type = self.type_arena.get_data_type(function_type.return_type);
 
-        let basic_type: BasicTypeEnum = match ret_llvm_type.llvm_type {
+        let basic_type: BasicTypeEnum = match ret_llvm_type.data_type_repr {
             Unit => return self.llvm_context.void_type().fn_type(&params, false),
             llvm_data_type => llvm_data_type.into()
         };
@@ -498,16 +500,16 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
         basic_type.fn_type(&params, false)
     }
 
-    fn lower_method(&self, method_name_symbol: DefaultSymbol, method: &Method<TypeChecking>) -> Method<CodeGeneration<'llvm_ctx>> {
+    fn lower_method(&self, method_name_symbol: DefaultSymbol, method: &Method<<SemanticAnalysis as MultiPhase>::LastPhase>) -> Method<CodeGeneration<'llvm_ctx>> {
         let func_data_type = self.type_arena.get_function_data_type(method.data_type_id);
 
-        let return_type: BasicTypeEnum = self.type_arena.get_data_type(func_data_type.return_type).llvm_type.into();
+        let return_type: BasicTypeEnum = self.type_arena.get_data_type(func_data_type.return_type).data_type_repr.into();
 
         let mut param_types: Vec<BasicMetadataTypeEnum> = Vec::with_capacity(func_data_type.param_types.len());
 
         for &param_type_id in &func_data_type.param_types {
             let param_type = self.type_arena.get_data_type(param_type_id);
-            param_types.push(param_type.llvm_type.into());
+            param_types.push(param_type.data_type_repr.into());
         }
 
         let fn_type = return_type.fn_type(
@@ -530,7 +532,7 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
         }
     }
 
-    fn lower_data_type(&mut self, data_type: &DataType<TypeChecking>) {
+    fn lower_data_type(&mut self, data_type: &DataType<<SemanticAnalysis as MultiPhase>::LastPhase>) {
 
         let llvm_data_type = match &data_type.data_type_kind {
             Builtin(builtin_type) => self.lower_builtin_data_type(builtin_type),
@@ -571,37 +573,5 @@ impl<'llvm_ctx> CodeGenerator<'llvm_ctx> {
         generator.builder.build_return(Some(&generator.llvm_context.i32_type().const_zero())).unwrap();
 
         generator.module.print_to_string().to_string()
-    }
-}
-
-impl<'llvm_ctx> SymbolTable<CodeGeneration<'llvm_ctx>> {
-    pub fn code_generation_symbol_table(semantic_symbol_table: &SymbolTable<TypeChecking>) -> Self {
-        let scopes: Vec<Scope<CodeGeneration>> = semantic_symbol_table.scopes.iter().map(|scope| Scope::new(scope.parent, scope.function)).collect();
-
-        Self {
-            scopes,
-            unary_op_impl: OperatorRegistry::new(),
-            binary_op_impl: OperatorRegistry::new(),
-        }
-    }
-
-    pub fn lower_semantic_symbol(
-        &mut self,
-        semantic_symbol: &Symbol<TypeChecking>,
-        llvm_var: PointerValue<'llvm_ctx>,
-        block_id: BlockId,
-    ) -> bool {
-        let symbol = Symbol::new(semantic_symbol.name, semantic_symbol.symbol_type, semantic_symbol.def_span, semantic_symbol.data_type_id, llvm_var);
-        self.scopes[block_id.as_usize()].insert(symbol)
-    }
-}
-
-impl TypeArena<CodeGeneration<'_>> {
-    pub fn code_generation_type_arena() -> Self {
-        Self {
-            data_types: Vec::new(),
-            function_types: Vec::new(),
-            function_type_ids: HashMap::new(),
-        }
     }
 }

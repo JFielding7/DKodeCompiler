@@ -1,5 +1,5 @@
 use string_interner::DefaultSymbol;
-use crate::ast::function_def_node::Parameter;
+use crate::ast::typed_variable::TypedVariable;
 use crate::error::compiler_error::CompilerResult;
 use crate::error::compiler_error::SpannableError;
 use crate::lexical_analysis::token::TokenType::{CloseParen, Colon, Comma, Identifier, OpenParen};
@@ -12,7 +12,7 @@ pub fn parse_function_name(token_stream: &mut TokenStream) -> CompilerResult<Def
     Ok(token_stream.expect_next_identifier()?.symbol)
 }
 
-fn parse_parameter(token_stream: &mut TokenStream) -> CompilerResult<Parameter> {
+fn parse_parameter(token_stream: &mut TokenStream) -> CompilerResult<TypedVariable> {
     let param_token = token_stream.expect_next_token(Identifier)?;
     let param_name = param_token.symbol;
     let param_span = param_token.span;
@@ -20,10 +20,10 @@ fn parse_parameter(token_stream: &mut TokenStream) -> CompilerResult<Parameter> 
     token_stream.expect_next_token(Colon)?;
     let type_annotation = parse_type_annotation(token_stream)?;
 
-    Ok(Parameter::new(param_name, type_annotation, param_span))
+    Ok(TypedVariable::new(param_name, type_annotation, param_span))
 }
 
-pub fn parse_parameters(token_stream: &mut TokenStream) -> CompilerResult<Vec<Parameter>> {
+pub fn parse_parameters(token_stream: &mut TokenStream) -> CompilerResult<Vec<TypedVariable>> {
     token_stream.expect_next_token(OpenParen)?;
 
     let mut params = Vec::new();

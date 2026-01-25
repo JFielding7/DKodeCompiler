@@ -1,7 +1,20 @@
+use std::collections::HashMap;
 use inkwell::types::StructType;
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType};
 use inkwell::AddressSpace;
-use crate::phase::types::llvm_type::LLVMDataType::Function;
+use crate::code_generation::CodeGeneration;
+use crate::phase::types::type_arena::TypeArena;
+
+impl TypeArena<CodeGeneration<'_>> {
+    pub fn code_generation_type_arena() -> Self {
+        Self {
+            data_types: Vec::new(),
+            user_defined_ids: HashMap::new(),
+            function_types: Vec::new(),
+            function_type_ids: HashMap::new(),
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone)]
 pub enum LLVMDataType<'llvm_ctx> {
@@ -13,6 +26,8 @@ pub enum LLVMDataType<'llvm_ctx> {
 
 impl<'llvm_ctx> LLVMDataType<'llvm_ctx> {
     pub fn function_type(self) -> FunctionType<'llvm_ctx> {
+        use LLVMDataType::*;
+
         if let Function(function) = self {
             function
         } else {

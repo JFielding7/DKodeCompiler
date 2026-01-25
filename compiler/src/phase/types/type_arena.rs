@@ -8,12 +8,12 @@ use crate::compiler_context::CompilerContext;
 #[derive(Debug)]
 pub struct TypeArena<T: Phase> {
     pub data_types: Vec<DataType<T>>,
-    pub function_types: Vec<FunctionDataType>,
-    pub function_type_ids: HashMap<FunctionDataType, DataTypeId>,
+    pub user_defined_ids: HashMap<DefaultSymbol, DataTypeId>,
+    pub function_types: Vec<FunctionDataTypeBinding>,
+    pub function_type_ids: HashMap<FunctionDataType, FunctionDataTypeId>,
 }
 
 impl<T: Phase> TypeArena<T> {
-
     pub fn add_new_type(&mut self, data_type: DataType<T>) -> DataTypeId {
         let id = self.data_types.len();
         self.data_types.push(data_type);
@@ -25,7 +25,11 @@ impl<T: Phase> TypeArena<T> {
     }
 
     pub fn get_function_data_type(&self, id: FunctionDataTypeId) -> &FunctionDataType {
-        &self.function_types[id.as_usize()]
+        &self.function_types[id.as_usize()].function_data_type
+    }
+    
+    pub fn function_to_data_type_id(&self, id: FunctionDataTypeId) -> DataTypeId {
+        self.function_types[id.as_usize()].data_type_id
     }
     
     pub fn get_data_type_mut(&mut self, id: DataTypeId) -> &mut DataType<T> {
@@ -42,7 +46,7 @@ impl<T: Phase> TypeArena<T> {
         if let Some(builtin_type) = BuiltinType::from_str(name_str) {
             Some(self.get_builtin_type_id(builtin_type))
         } else {
-            unimplemented!("User defined Types")
+            self.user_defined_ids.get(&name).cloned()
         }
     }
 
@@ -56,13 +60,28 @@ impl<T: Phase> TypeArena<T> {
                 let function_type = &self.function_types[function_type_id.as_usize()];
 
                 format!("fn({}): {}",
-                        function_type.param_types
+                        function_type.function_data_type.param_types
                             .iter()
                             .map(|t| self.format_type(*t, ctx))
                             .collect::<Vec<String>>().join(", "), 
-                        self.format_type(function_type.return_type, ctx)
+                        self.format_type(function_type.function_data_type.return_type, ctx)
                 )
             }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct FunctionDataTypeBinding {
+    data_type_id: DataTypeId, 
+    function_data_type: FunctionDataType
+}
+
+impl FunctionDataTypeBinding {
+    pub fn new(data_type_id: DataTypeId, function_data_type: FunctionDataType) -> Self {
+        Self {
+            data_type_id,
+            function_data_type,
         }
     }
 }

@@ -20,8 +20,8 @@ impl AccessNode {
 
 #[derive(Debug)]
 pub struct Member {
-    name: DefaultSymbol,
-    member_type: MemberType,
+    pub name: DefaultSymbol,
+    pub member_type: MemberType,
     pub span: SourceSpan,
 }
 

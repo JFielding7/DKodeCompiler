@@ -1,12 +1,12 @@
 use string_interner::DefaultSymbol;
 use crate::ast::block::BlockId;
-use crate::source::source_span::SourceSpan;
+use crate::ast::typed_variable::TypedVariable;
 use crate::phase::types::type_annotation::TypeAnnotation;
 
 #[derive(Debug)]
 pub struct FunctionDefNode {
     pub name: DefaultSymbol,
-    pub params: Vec<Parameter>,
+    pub params: Vec<TypedVariable>,
     pub body_id: BlockId,
     pub return_type: Option<TypeAnnotation>,
 }
@@ -14,7 +14,7 @@ pub struct FunctionDefNode {
 impl FunctionDefNode {
     pub fn new(
         name: DefaultSymbol,
-        params: Vec<Parameter>,
+        params: Vec<TypedVariable>,
         body: BlockId,
         return_type: Option<TypeAnnotation>,
     ) -> Self {
@@ -23,23 +23,6 @@ impl FunctionDefNode {
             params,
             body_id: body,
             return_type,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Parameter {
-    pub name: DefaultSymbol,
-    pub type_annotation: TypeAnnotation,
-    pub span: SourceSpan,
-}
-
-impl Parameter {
-    pub fn new(name: DefaultSymbol, type_annotation: TypeAnnotation, span: SourceSpan) -> Self {
-        Self { 
-            name, 
-            type_annotation,
-            span,
         }
     }
 }

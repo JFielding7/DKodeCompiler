@@ -14,8 +14,7 @@ pub struct Scope<T: Phase> {
 
 impl<T> Scope<T>
 where
-    T: Phase,
-    T: Phase<Symbols = HashMap<DefaultSymbol, Symbol<T>>>,
+    T: Phase + Phase<Symbols = HashMap<DefaultSymbol, Symbol<T>>>,
 {
     pub fn new(parent: Option<BlockId>, function: Option<DefaultSymbol>) -> Self {
         Self {
@@ -34,6 +33,10 @@ where
             }
             Entry::Occupied(_) => false,
         }
+    }
+    
+    pub fn get_or_insert(&mut self, symbol: Symbol<T>) -> &mut Symbol<T> {
+        self.symbols.entry(symbol.name).or_insert(symbol)
     }
 
     pub fn lookup(&self, name: DefaultSymbol) -> Option<&Symbol<T>> {
@@ -54,14 +57,3 @@ where
         self.symbols.contains_key(&name)
     }
 }
-
-// TODO
-// impl<T: Phase> Scope<T> {
-//     pub fn new(parent: Option<BlockId>, function: Option<DefaultSymbol>) -> Self {
-//         Self {
-//             parent,
-//             symbols: HashMap::new(),
-//             function,
-//         }
-//     }
-// }

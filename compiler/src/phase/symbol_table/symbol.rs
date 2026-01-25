@@ -8,7 +8,7 @@ pub struct Symbol<T: Phase> {
     pub symbol_type: SymbolType,
     pub def_span: SourceSpan,
     pub data_type_id: T::SymbolDataTypeId,
-    pub llvm_var: T::LLVMVariable,
+    pub llvm_variable: T::VariableRepr,
 }
 
 impl<T: Phase> Symbol<T> {
@@ -17,14 +17,14 @@ impl<T: Phase> Symbol<T> {
         symbol_type: SymbolType,
         def_span: SourceSpan,
         data_type_id: T::SymbolDataTypeId,
-        llvm_var: T::LLVMVariable,
+        llvm_variable: T::VariableRepr,
     ) -> Self {
         Self {
             name,
             def_span,
             symbol_type,
             data_type_id,
-            llvm_var,
+            llvm_variable,
         }
     }
 }
@@ -34,6 +34,7 @@ pub enum SymbolType {
     Variable,
     FunctionParam(usize),
     ClassField(usize),
+    Class,
 }
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]

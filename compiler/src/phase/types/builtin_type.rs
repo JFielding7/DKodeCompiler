@@ -2,7 +2,7 @@ use std::fmt::Formatter;
 use strum::EnumIter;
 
 #[repr(usize)]
-#[derive(Debug, Copy, Clone, PartialEq, EnumIter)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
 pub enum BuiltinType {
     Unit = 0,
     Bool,

@@ -1,13 +1,15 @@
 use crate::phase::Phase;
 use crate::phase::types::builtin_type::BuiltinType;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use string_interner::DefaultSymbol;
 
 #[derive(Debug)]
 pub struct DataType<T: Phase> {
     pub data_type_kind: DataTypeEnum,
+    pub fields: HashMap<DefaultSymbol, Field<T>>,
     pub methods: HashMap<DefaultSymbol, Method<T>>,
-    pub llvm_type: T::LLVMDataType
+    pub data_type_repr: T::DataTypeRepr
 }
 
 impl<T: Phase> PartialEq for DataType<T> {
@@ -17,12 +19,21 @@ impl<T: Phase> PartialEq for DataType<T> {
 }
 
 impl<T: Phase> DataType<T> {
-    pub fn new(data_type_kind: DataTypeEnum, llvm_type: T::LLVMDataType) -> Self {
+    pub fn new(data_type_kind: DataTypeEnum, data_type_repr: T::DataTypeRepr) -> Self {
         Self {
             data_type_kind,
+            fields: HashMap::new(),
             methods: HashMap::new(),
-            llvm_type
+            data_type_repr,
         }
+    }
+
+    pub fn add_field(&mut self, symbol: DefaultSymbol, field: Field<T>) {
+        self.fields.insert(symbol, field);
+    }
+
+    pub fn get_field(&self, symbol: DefaultSymbol) -> &Field<T> {
+        self.fields.get(&symbol).unwrap()
     }
 
     pub fn add_method(&mut self, symbol: DefaultSymbol, function: Method<T>) {
@@ -32,13 +43,9 @@ impl<T: Phase> DataType<T> {
     pub fn get_method(&self, symbol: DefaultSymbol) -> &Method<T> {
         self.methods.get(&symbol).unwrap()
     }
-
-    pub fn get_method_mut(&mut self, symbol: DefaultSymbol) -> &mut Method<T> {
-        self.methods.get_mut(&symbol).unwrap()
-    }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum DataTypeEnum {
     Builtin(BuiltinType),
     UserDefined(DefaultSymbol),
@@ -60,17 +67,32 @@ impl FunctionDataType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
+pub struct Field<T: Phase> {
+    pub data_type_id: DataTypeId,
+    pub field_repr: T::VariableRepr
+}
+
+impl<T: Phase> Field<T> {
+    pub fn new(data_type_id: DataTypeId, field_repr: T::VariableRepr) -> Self {
+        Self {
+            data_type_id,
+            field_repr,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Method<T: Phase> {
     pub data_type_id: FunctionDataTypeId,
-    pub llvm_value: T::LLVMFunction,
+    pub function_repr: T::FunctionRepr,
 }
 
 impl<T: Phase> Method<T> {
-    pub fn new(data_type_id: FunctionDataTypeId, llvm_value: T::LLVMFunction) -> Self {
+    pub fn new(data_type_id: FunctionDataTypeId, function_repr: T::FunctionRepr) -> Self {
         Self {
             data_type_id,
-            llvm_value,
+            function_repr,
         }
     }
 }

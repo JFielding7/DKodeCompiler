@@ -293,3 +293,13 @@ enum BlockChildNodeId {
     Item(ItemId),
     Statement(StatementId),
 }
+
+impl Scope<SyntaxAnalysis> {
+    pub fn syntax_analysis_scope(parent: Option<BlockId>, function: Option<DefaultSymbol>) -> Self {
+        Self {
+            parent,
+            function,
+            symbols: ()
+        }
+    }
+}

@@ -17,6 +17,11 @@ pub enum SemanticError {
         rhs_data_type: String,
     },
 
+    InvalidAssignment {
+        lhs_data_type: String,
+        rhs_data_type: String,
+    },
+
     MismatchedTypes {
         expected: String,
         actual: String,
@@ -25,6 +30,8 @@ pub enum SemanticError {
     DuplicateParameterName(DefaultSymbol),
 
     DuplicateFunctionName(DefaultSymbol),
+    
+    DuplicateClassFieldName(DefaultSymbol),
 
     UndefinedVariable(DefaultSymbol),
 
@@ -64,6 +71,9 @@ impl SpannableError for SemanticError {
             MismatchedBinaryOperatorTypes { op, lhs_data_type, rhs_data_type } => {
                 format!("Error: Operator {op} not defined for {lhs_data_type} and {rhs_data_type}")
             }
+            InvalidAssignment { lhs_data_type, rhs_data_type, } => {
+                format!("Error: Cannot assign a {rhs_data_type} to a {lhs_data_type}")
+            }
             MismatchedTypes { expected, actual } => {
                 format!("Error: Mismatched types: Expected {expected}, but got {actual}")
             }
@@ -80,6 +90,11 @@ impl SpannableError for SemanticError {
             DuplicateFunctionName(func_name) => {
                 format!("Error: Duplicate function definition: {}",
                         string_interner.get_str(*func_name)
+                )
+            }
+            DuplicateClassFieldName(field_name) => {
+                format!("Error: Duplicate field definition: {}",
+                        string_interner.get_str(*field_name)
                 )
             }
             FunctionExpected => {
